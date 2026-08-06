@@ -67,12 +67,107 @@
     oldCopy.remove()
   }
 
+  const ensureStyles = () => {
+    if (document.getElementById('workflow-fix-styles')) return
+    const style = document.createElement('style')
+    style.id = 'workflow-fix-styles'
+    style.textContent = `
+      .workflow-confirm-button {
+        width: 100%;
+        min-height: 46px;
+        margin-top: 10px;
+        border: 0;
+        border-radius: 14px;
+        padding: 12px 16px;
+        color: white;
+        background: linear-gradient(135deg, #7e0fa0, #e320a1);
+        font-weight: 900;
+        box-shadow: 0 10px 24px rgba(126, 15, 160, .18);
+      }
+      .workflow-confirm-button:focus-visible {
+        outline: 3px solid rgba(227, 32, 161, .25);
+        outline-offset: 2px;
+      }
+    `
+    document.head.append(style)
+  }
+
   const makeOption = (value, selected = false) => {
     const option = document.createElement('option')
     option.value = value
     option.textContent = value
     option.selected = selected
     return option
+  }
+
+  const removeConfirmButton = (card) => {
+    card?.querySelector('.workflow-confirm-button')?.remove()
+  }
+
+  const updateButtonText = (button, select) => {
+    const target = select.value
+    button.textContent = target === 'Cancelada'
+      ? 'Confirmar cancelación'
+      : `Confirmar avance a “${target}”`
+  }
+
+  const saveFallback = (quoteId, targetStatus) => {
+    const quotes = readQuotes()
+    const index = quotes.findIndex((quote) => quote.id === quoteId)
+    if (index < 0) return false
+    quotes[index] = {
+      ...quotes[index],
+      status: targetStatus,
+      updatedAt: new Date().toISOString(),
+    }
+    localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes))
+    return true
+  }
+
+  const ensureConfirmButton = (select) => {
+    const card = select.closest('.order-card')
+    const field = select.closest('.status-select') || select.parentElement
+    if (!card || !field) return
+
+    let button = card.querySelector('.workflow-confirm-button')
+    if (!button) {
+      button = document.createElement('button')
+      button.type = 'button'
+      button.className = 'workflow-confirm-button'
+      field.insertAdjacentElement('afterend', button)
+
+      button.addEventListener('click', () => {
+        const quoteId = select.dataset.statusId
+        const targetStatus = select.value
+        const beforeStatus = readQuotes().find((quote) => quote.id === quoteId)?.status
+
+        select.dataset.workflowConfirming = '1'
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+
+        window.setTimeout(() => {
+          const afterStatus = readQuotes().find((quote) => quote.id === quoteId)?.status
+          if (afterStatus === targetStatus) return
+
+          if (afterStatus === beforeStatus && saveFallback(quoteId, targetStatus)) {
+            window.location.reload()
+          }
+        }, 150)
+      })
+    }
+
+    if (select.dataset.workflowGuard !== '1') {
+      select.addEventListener('change', (event) => {
+        if (select.dataset.workflowConfirming === '1') {
+          delete select.dataset.workflowConfirming
+          return
+        }
+        event.stopImmediatePropagation()
+        updateButtonText(button, select)
+      }, true)
+      select.dataset.workflowGuard = '1'
+    }
+
+    updateButtonText(button, select)
   }
 
   const patchOrderSelects = () => {
@@ -90,11 +185,13 @@
 
       if (currentStatus === 'Cancelada') {
         const key = 'cancelada'
-        if (select.dataset.workflowFix === key) return
-        select.innerHTML = ''
-        select.append(makeOption('Pedido cancelado', true))
-        select.disabled = true
-        select.dataset.workflowFix = key
+        if (select.dataset.workflowFix !== key) {
+          select.innerHTML = ''
+          select.append(makeOption('Pedido cancelado', true))
+          select.disabled = true
+          select.dataset.workflowFix = key
+        }
+        removeConfirmButton(card)
         return
       }
 
@@ -104,23 +201,27 @@
 
       if (!nextStatus) {
         const key = 'completado'
-        if (select.dataset.workflowFix === key) return
-        select.innerHTML = ''
-        select.append(makeOption('Proceso completado', true))
-        select.disabled = true
-        select.dataset.workflowFix = key
+        if (select.dataset.workflowFix !== key) {
+          select.innerHTML = ''
+          select.append(makeOption('Proceso completado', true))
+          select.disabled = true
+          select.dataset.workflowFix = key
+        }
+        removeConfirmButton(card)
         return
       }
 
       const futureStatuses = [...workflow.slice(safeIndex + 1), 'Cancelada']
       const key = `${currentStatus}|${futureStatuses.join('|')}`
-      if (select.dataset.workflowFix === key) return
+      if (select.dataset.workflowFix !== key) {
+        select.disabled = false
+        select.innerHTML = ''
+        futureStatuses.forEach((status) => select.append(makeOption(status, status === nextStatus)))
+        select.value = nextStatus
+        select.dataset.workflowFix = key
+      }
 
-      select.disabled = false
-      select.innerHTML = ''
-      futureStatuses.forEach((status) => select.append(makeOption(status, status === nextStatus)))
-      select.value = nextStatus
-      select.dataset.workflowFix = key
+      ensureConfirmButton(select)
     })
   }
 
@@ -130,6 +231,7 @@
     scheduled = true
     requestAnimationFrame(() => {
       scheduled = false
+      ensureStyles()
       patchHeader()
       patchOrderSelects()
     })
