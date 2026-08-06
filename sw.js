@@ -1,5 +1,5 @@
-const CACHE_NAME = 'ana-karen-v9';
-const APP_SHELL = ['./', './index.html', './styles.css', './pricing.js', './app.js', './workflow-fix.js', './manifest.webmanifest', './icon.svg'];
+const CACHE_NAME = 'ana-karen-v10';
+const APP_SHELL = ['./', './index.html', './styles.css', './pricing.js', './app.js', './workflow-fix.js', './followup.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
