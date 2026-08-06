@@ -1,0 +1,14 @@
+/* Evita que la barra inferior cubra el contenido final. */
+.main-content {
+  padding-bottom: calc(180px + env(safe-area-inset-bottom)) !important;
+}
+
+.ak-finance-detail {
+  margin-bottom: 28px !important;
+}
+
+@media (min-width: 760px) {
+  .main-content {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom)) !important;
+  }
+}
