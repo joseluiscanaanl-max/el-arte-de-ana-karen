@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ana-karen-v3-joce';
+const CACHE_NAME = 'ana-karen-v2';
 const APP_SHELL = ['./', './index.html', './styles.css', './pricing.js', './app.js', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
