@@ -21,11 +21,18 @@
 
   const normalizePhone = (value = '') => {
     let digits = String(value).replace(/\D/g, '')
-
     if (/^\d{10}$/.test(digits)) digits = `52${digits}`
     if (/^521\d{10}$/.test(digits)) digits = `52${digits.slice(3)}`
-
     return digits.length >= 11 && digits.length <= 15 ? digits : ''
+  }
+
+  const formatPhone = (value = '') => {
+    const phone = normalizePhone(value)
+    if (/^52\d{10}$/.test(phone)) {
+      const local = phone.slice(2)
+      return `+52 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`
+    }
+    return phone ? `+${phone}` : 'Sin número guardado'
   }
 
   const getContext = (panel) => {
@@ -70,7 +77,7 @@
   }
 
   const setStatus = (panel, text) => {
-    const status = panel.querySelector('[data-followup-status]')
+    const status = panel?.querySelector('[data-followup-status]')
     if (status) status.textContent = text
   }
 
@@ -80,6 +87,30 @@
     const style = document.createElement('style')
     style.id = 'ak-followup-phone-fix-styles'
     style.textContent = `
+      .ak-phone-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+        padding: 11px 13px;
+        border: 1px solid #ead7ee;
+        border-radius: 13px;
+        background: #fff;
+        color: #4d255f;
+      }
+      .ak-phone-summary strong { color: #2d075f; }
+      .ak-phone-change {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid #d9b7e1;
+        border-radius: 11px;
+        color: #5f0795;
+        background: #fff;
+        font-weight: 900;
+        cursor: pointer;
+      }
       .ak-phone-required {
         margin-top: 10px;
         padding: 14px;
@@ -92,6 +123,11 @@
         margin: 0 0 10px;
         color: #5d2455;
         line-height: 1.4;
+      }
+      .ak-phone-note {
+        margin-top: 8px !important;
+        color: #705a7f !important;
+        font-size: .84rem;
       }
       .ak-phone-required-row {
         display: grid;
@@ -127,13 +163,38 @@
         font-weight: 800;
       }
       @media (max-width: 620px) {
+        .ak-phone-summary { align-items: flex-start; }
         .ak-phone-required-row { grid-template-columns: 1fr; }
       }
     `
     document.head.append(style)
   }
 
-  const showPhoneForm = (panel, client) => {
+  const ensurePhoneSummary = (panel) => {
+    if (!panel || panel.querySelector('.ak-phone-summary')) return
+    const context = getContext(panel)
+    if (!context) return
+
+    const summary = document.createElement('div')
+    summary.className = 'ak-phone-summary'
+    summary.innerHTML = `
+      <span><strong>WhatsApp de ${firstName(context.client?.name)}:</strong><br><span data-ak-phone-value></span></span>
+      <button type="button" class="ak-phone-change" data-ak-change-phone>Corregir número</button>
+    `
+
+    const status = panel.querySelector('[data-followup-status]')
+    if (status) status.insertAdjacentElement('afterend', summary)
+    else panel.append(summary)
+    updatePhoneSummary(panel)
+  }
+
+  const updatePhoneSummary = (panel) => {
+    const context = getContext(panel)
+    const value = panel?.querySelector('[data-ak-phone-value]')
+    if (context && value) value.textContent = formatPhone(context.client?.whatsapp)
+  }
+
+  const showPhoneForm = (panel, client, prefill = '') => {
     ensureStyles()
 
     let form = panel.querySelector('.ak-phone-required')
@@ -141,29 +202,32 @@
       form = document.createElement('div')
       form.className = 'ak-phone-required'
       form.innerHTML = `
-        <p><strong>Falta el WhatsApp del cliente.</strong><br>
-        Guarda el número para abrir directamente el chat correcto.</p>
+        <p data-ak-phone-explanation></p>
         <div class="ak-phone-required-row">
-          <input type="tel" inputmode="tel" autocomplete="tel" placeholder="Ej. 833 123 4567" data-ak-phone-input>
+          <input type="tel" inputmode="tel" autocomplete="tel" placeholder="Número real de 10 dígitos" data-ak-phone-input>
           <button type="button" data-ak-save-phone>Guardar y abrir WhatsApp</button>
         </div>
+        <p class="ak-phone-note">La aplicación valida el formato. WhatsApp confirma después si el número tiene una cuenta activa.</p>
         <p class="ak-phone-required-error" data-ak-phone-error></p>
       `
 
-      const status = panel.querySelector('[data-followup-status]')
-      if (status) status.insertAdjacentElement('afterend', form)
+      const summary = panel.querySelector('.ak-phone-summary')
+      if (summary) summary.insertAdjacentElement('afterend', form)
       else panel.append(form)
     }
 
     const name = firstName(client?.name)
-    const explanation = form.querySelector('p')
+    const explanation = form.querySelector('[data-ak-phone-explanation]')
     if (explanation) {
-      explanation.innerHTML = `<strong>Falta el WhatsApp de ${name}.</strong><br>Guarda el número para abrir directamente el chat correcto.`
+      explanation.innerHTML = `<strong>Escribe el WhatsApp real de ${name}.</strong><br>Se guardará en su ficha y abrirá directamente el chat.`
     }
 
+    const input = form.querySelector('[data-ak-phone-input]')
+    input.value = prefill || client?.whatsapp || ''
     form.hidden = false
     form.querySelector('[data-ak-phone-error]').textContent = ''
-    form.querySelector('[data-ak-phone-input]').focus()
+    input.focus()
+    input.select()
     return form
   }
 
@@ -173,7 +237,23 @@
     event.stopImmediatePropagation()
   }
 
+  const patchPhoneSummaries = () => {
+    ensureStyles()
+    document.querySelectorAll('.ak-followup-panel').forEach(ensurePhoneSummary)
+  }
+
   document.addEventListener('click', (event) => {
+    const changePhoneButton = event.target.closest('[data-ak-change-phone]')
+    if (changePhoneButton) {
+      stopOriginalClick(event)
+      const panel = changePhoneButton.closest('.ak-followup-panel')
+      const context = getContext(panel)
+      if (!context) return
+      showPhoneForm(panel, context.client, context.client?.whatsapp || '')
+      setStatus(panel, `Corrige el número de WhatsApp de ${firstName(context.client?.name)}.`)
+      return
+    }
+
     const whatsappButton = event.target.closest('[data-followup-whatsapp]')
     if (whatsappButton) {
       stopOriginalClick(event)
@@ -190,13 +270,13 @@
       const phone = normalizePhone(context.client?.whatsapp)
       if (!phone) {
         showPhoneForm(panel, context.client)
-        setStatus(panel, `Agrega el número de WhatsApp de ${firstName(context.client?.name)}.`)
+        setStatus(panel, `Agrega el número real de WhatsApp de ${firstName(context.client?.name)}.`)
         return
       }
 
       openDirectChat(phone, message)
       saveOpenedMessage(context.quote.id, message)
-      setStatus(panel, `WhatsApp abierto directamente con ${firstName(context.client?.name)}.`)
+      setStatus(panel, `WhatsApp abierto con ${firstName(context.client?.name)}. Si WhatsApp rechaza el número, regresa y pulsa “Corregir número”.`)
       return
     }
 
@@ -214,7 +294,7 @@
     const phone = normalizePhone(input?.value)
 
     if (!context || !phone) {
-      if (error) error.textContent = 'Escribe un número válido, por ejemplo 833 123 4567.'
+      if (error) error.textContent = 'Escribe el número real con 10 dígitos.'
       input?.focus()
       return
     }
@@ -225,8 +305,19 @@
     }
 
     form.hidden = true
+    updatePhoneSummary(panel)
     openDirectChat(phone, message)
     saveOpenedMessage(context.quote.id, message)
-    setStatus(panel, `Número guardado. WhatsApp abierto directamente con ${firstName(context.client?.name)}.`)
+    setStatus(panel, `Número actualizado. WhatsApp abierto directamente con ${firstName(context.client?.name)}.`)
   }, true)
+
+  const start = () => {
+    patchPhoneSummaries()
+    const app = document.getElementById('app')
+    if (!app) return
+    new MutationObserver(patchPhoneSummaries).observe(app, { childList: true, subtree: true })
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start)
+  else start()
 })()
