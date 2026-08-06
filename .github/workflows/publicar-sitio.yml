@@ -18,7 +18,7 @@ concurrency:
 jobs:
   deploy:
     name: Publicar sitio
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-slim
     environment:
       name: el-arte-de-ana-karen-pages
       url: ${{ steps.deployment.outputs.page_url }}
