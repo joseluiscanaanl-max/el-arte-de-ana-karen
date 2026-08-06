@@ -1,0 +1,28 @@
+/* Posicionamiento seguro de JoCe dentro de Cotizar.
+   No mueve nodos con JavaScript y evita ciclos de MutationObserver. */
+
+.quote-page > .page-title {
+  order: 0;
+}
+
+#quote-form > #ak-joce-photo-analysis {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+  order: 1;
+}
+
+#quote-form > .form-card:not(#ak-joce-photo-analysis) {
+  order: 2;
+}
+
+.quote-page > .price-result {
+  order: 3;
+}
+
+/* En pantallas amplias, el análisis y las opciones de lienzo aprovechan todo el ancho. */
+@media (min-width: 720px) {
+  #ak-joce-photo-analysis .ak-analysis-grid,
+  #ak-joce-photo-analysis .ak-canvas-sizes__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
