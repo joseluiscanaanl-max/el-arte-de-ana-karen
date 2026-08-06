@@ -69,3 +69,9 @@ Los datos se guardan en `localStorage`, exclusivamente en el navegador del dispo
 ## Estado
 
 MVP funcional 0.1 validado y preparado para publicación. La siguiente etapa es crear el repositorio remoto, activar GitHub Pages o conectarlo a Vercel, probarlo con Ana Karen y ajustar los valores predeterminados según sus materiales, tiempos reales y tipo de obra.
+
+## Actualización 0.3: JoCe e identidad oficial
+
+La aplicación integra el logotipo oficial de El Arte de Ana Karen y una paleta visual basada en púrpuras, rosas y magentas. JoCe aparece como ayudante en Inicio y Promover para mostrar frases motivacionales, recomendaciones según la etapa del encargo e ideas promocionales.
+
+El seguimiento utiliza 16 estados en orden lógico: Borrador, Cotización enviada, Esperando aprobación de cotización, Esperando anticipo, Anticipo recibido, Boceto en proceso, Esperando aprobación del boceto, Boceto aprobado, Pintura en proceso, Obra terminada, Esperando saldo, Pago completo, Lista para entregar, Entregada, Seguimiento al cliente y Cancelada.

@@ -22,3 +22,14 @@
 ## Nota
 
 La captura automática con Chromium no pudo completarse por una limitación del navegador sin interfaz disponible en el entorno de ejecución. Esto no afectó las pruebas de sintaxis, lógica de precios ni disponibilidad de archivos.
+
+## Actualización 0.3 — Identidad visual y JoCe
+
+- Logotipo oficial incorporado en encabezado, inicio e icono instalable.
+- Paleta púrpura, rosa y magenta aplicada conforme al logotipo.
+- Lista de estados ordenada en 16 etapas lógicas, desde Borrador hasta Seguimiento o Cancelada.
+- JoCe incorporado como ayudante con frases motivacionales.
+- JoCe ofrece sugerencias relacionadas con la etapa actual del encargo.
+- JoCe genera ideas promocionales y permite cambiar de sugerencia.
+- Validación de sintaxis de app.js y sw.js aprobada.
+- Pruebas del motor de precios aprobadas.

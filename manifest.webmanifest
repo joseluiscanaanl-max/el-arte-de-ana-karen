@@ -4,8 +4,8 @@
   "description": "Calculadora de precios, cotizaciones, clientes y promoción para el taller de Ana Karen.",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f7efe8",
-  "theme_color": "#f7efe8",
+  "background_color": "#f8f1ff",
+  "theme_color": "#5f0795",
   "lang": "es-MX",
   "icons": [
     {
