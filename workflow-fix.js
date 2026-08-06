@@ -20,6 +20,13 @@
     'Seguimiento al cliente',
   ]
 
+  const settledStatuses = new Set([
+    'Pago completo',
+    'Lista para entregar',
+    'Entregada',
+    'Seguimiento al cliente',
+  ])
+
   const aliases = {
     'Esperando aprobación': 'Esperando aprobación de cotización',
   }
@@ -92,6 +99,9 @@
         outline: 3px solid rgba(227, 32, 161, .25);
         outline-offset: 2px;
       }
+      .order-money .balance-paid b {
+        color: #16834f;
+      }
     `
     document.head.append(style)
   }
@@ -120,15 +130,36 @@
     const index = quotes.findIndex((quote) => quote.id === quoteId)
     if (index < 0) return false
 
+    const now = new Date().toISOString()
+    const becomesPaid = settledStatuses.has(targetStatus)
+
     quotes[index] = {
       ...quotes[index],
       status: targetStatus,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
+      ...(becomesPaid ? { paidAt: quotes[index].paidAt || now } : {}),
     }
     localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes))
 
     const verification = readQuotes().find((quote) => quote.id === quoteId)
     return verification?.status === targetStatus
+  }
+
+  const patchPaymentDisplay = (card, currentStatus) => {
+    if (!card) return
+    const moneyItems = card.querySelectorAll('.order-money span')
+    const balanceItem = moneyItems[1]
+    const balanceValue = balanceItem?.querySelector('b')
+    if (!balanceItem || !balanceValue) return
+
+    if (settledStatuses.has(currentStatus)) {
+      balanceItem.classList.add('balance-paid')
+      balanceValue.textContent = '$0'
+      balanceItem.setAttribute('aria-label', 'Saldo pagado: cero pesos')
+    } else {
+      balanceItem.classList.remove('balance-paid')
+      balanceItem.removeAttribute('aria-label')
+    }
   }
 
   const ensureConfirmButton = (select) => {
@@ -185,6 +216,8 @@
       const card = select.closest('.order-card')
       const pill = card?.querySelector('.status-pill')
       if (pill && pill.textContent !== currentStatus) pill.textContent = currentStatus
+
+      patchPaymentDisplay(card, currentStatus)
 
       if (currentStatus === 'Cancelada') {
         const key = 'cancelada'
