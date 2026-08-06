@@ -1,0 +1,10 @@
+{
+  "name": "el-arte-de-ana-karen",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PWA móvil para cotizaciones, clientes, pedidos y promoción artística.",
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "check": "node --check app.js"
+  }
+}
