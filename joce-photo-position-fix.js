@@ -3,6 +3,7 @@
 
   const CARD_ID = 'ak-joce-photo-analysis'
   const STYLE_ID = 'ak-joce-photo-position-style'
+  let scheduled = false
 
   const addStyles = () => {
     if (document.getElementById(STYLE_ID)) return
@@ -22,37 +23,44 @@
   }
 
   const placeFirst = () => {
+    scheduled = false
     addStyles()
 
     const form = document.getElementById('quote-form')
     const card = document.getElementById(CARD_ID)
     if (!form || !card) return
 
-    const firstRegularCard = [...form.children].find((node) =>
-      node instanceof HTMLElement &&
-      node.classList.contains('form-card') &&
-      node.id !== CARD_ID
+    const firstRegularCard = [...form.querySelectorAll('.form-card')].find((node) =>
+      node instanceof HTMLElement && node.id !== CARD_ID
     )
 
-    if (firstRegularCard && card.nextElementSibling !== firstRegularCard) {
-      form.insertBefore(card, firstRegularCard)
+    if (firstRegularCard && card !== firstRegularCard) {
+      const parent = firstRegularCard.parentNode
+      if (parent && (card.parentNode !== parent || card.nextElementSibling !== firstRegularCard)) {
+        parent.insertBefore(card, firstRegularCard)
+      }
     }
 
-    card.dataset.joceFirst = 'true'
+    if (card.dataset.joceFirst !== 'true') card.dataset.joceFirst = 'true'
 
     const heading = card.querySelector('.form-card-title h3')
-    if (heading) heading.textContent = 'Primero, JoCe analiza la foto'
+    const title = 'Primero, JoCe analiza la foto'
+    if (heading && heading.textContent !== title) heading.textContent = title
   }
 
-  const observer = new MutationObserver(placeFirst)
-  observer.observe(document.documentElement, { childList: true, subtree: true })
+  const schedulePlace = () => {
+    if (scheduled) return
+    scheduled = true
+    requestAnimationFrame(placeFirst)
+  }
+
+  const app = document.getElementById('app') || document.documentElement
+  const observer = new MutationObserver(schedulePlace)
+  observer.observe(app, { childList: true, subtree: true })
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', placeFirst)
+    document.addEventListener('DOMContentLoaded', schedulePlace, { once: true })
   } else {
-    placeFirst()
+    schedulePlace()
   }
-
-  setTimeout(placeFirst, 100)
-  setTimeout(placeFirst, 500)
 })()
