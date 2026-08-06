@@ -84,6 +84,10 @@
         font-weight: 900;
         box-shadow: 0 10px 24px rgba(126, 15, 160, .18);
       }
+      .workflow-confirm-button:disabled {
+        opacity: .7;
+        cursor: wait;
+      }
       .workflow-confirm-button:focus-visible {
         outline: 3px solid rgba(227, 32, 161, .25);
         outline-offset: 2px;
@@ -111,17 +115,20 @@
       : `Confirmar avance a “${target}”`
   }
 
-  const saveFallback = (quoteId, targetStatus) => {
+  const saveStatus = (quoteId, targetStatus) => {
     const quotes = readQuotes()
     const index = quotes.findIndex((quote) => quote.id === quoteId)
     if (index < 0) return false
+
     quotes[index] = {
       ...quotes[index],
       status: targetStatus,
       updatedAt: new Date().toISOString(),
     }
     localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes))
-    return true
+
+    const verification = readQuotes().find((quote) => quote.id === quoteId)
+    return verification?.status === targetStatus
   }
 
   const ensureConfirmButton = (select) => {
@@ -139,28 +146,24 @@
       button.addEventListener('click', () => {
         const quoteId = select.dataset.statusId
         const targetStatus = select.value
-        const beforeStatus = readQuotes().find((quote) => quote.id === quoteId)?.status
+        if (!quoteId || !targetStatus) return
 
-        select.dataset.workflowConfirming = '1'
-        select.dispatchEvent(new Event('change', { bubbles: true }))
+        button.disabled = true
+        button.textContent = 'Guardando avance…'
 
-        window.setTimeout(() => {
-          const afterStatus = readQuotes().find((quote) => quote.id === quoteId)?.status
-          if (afterStatus === targetStatus) return
+        if (!saveStatus(quoteId, targetStatus)) {
+          button.disabled = false
+          updateButtonText(button, select)
+          window.alert('No fue posible guardar el avance. Inténtalo nuevamente.')
+          return
+        }
 
-          if (afterStatus === beforeStatus && saveFallback(quoteId, targetStatus)) {
-            window.location.reload()
-          }
-        }, 150)
+        window.setTimeout(() => window.location.reload(), 80)
       })
     }
 
     if (select.dataset.workflowGuard !== '1') {
       select.addEventListener('change', (event) => {
-        if (select.dataset.workflowConfirming === '1') {
-          delete select.dataset.workflowConfirming
-          return
-        }
         event.stopImmediatePropagation()
         updateButtonText(button, select)
       }, true)
