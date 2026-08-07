@@ -31,7 +31,8 @@
 }
 
 .payment-open-button,
-.payment-save-button {
+.payment-save-button,
+.payment-correct-button {
   min-height: 42px;
   border: 0;
   border-radius: 12px;
@@ -39,6 +40,16 @@
   color: white;
   background: linear-gradient(135deg, var(--purple-700), var(--pink-600));
   font-weight: 900;
+}
+
+.payment-correct-button {
+  min-height: 36px;
+  margin-top: 9px;
+  padding: 8px 11px;
+  color: var(--purple-700);
+  background: white;
+  border: 1px solid #dec6e8;
+  font-size: .75rem;
 }
 
 .payment-open-button:disabled {
@@ -90,6 +101,7 @@
 
 .payment-storage-warning,
 .payment-form-error,
+.payment-correction-error,
 .payment-overpayment-warning {
   padding: 11px 12px;
   border: 1px solid #f1b8b8;
@@ -132,12 +144,35 @@
   color: var(--danger);
 }
 
+.payment-history-item.is-corrected {
+  border: 1px solid #e2d4e8;
+  opacity: .82;
+}
+
+.payment-corrected-label {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 7px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #684f7f;
+  background: #eee7f2;
+  font-size: .68rem;
+  font-weight: 900;
+}
+
+.payment-history-item .payment-correction-reference {
+  color: var(--purple-700);
+  font-weight: 900;
+}
+
 .payment-history-item .payment-migrated-label {
   color: #8a4d0b;
   font-weight: 900;
 }
 
-.payment-dialog {
+.payment-dialog,
+.payment-correction-dialog {
   width: min(440px, calc(100% - 28px));
   max-height: calc(100dvh - 28px);
   overflow: auto;
@@ -149,18 +184,43 @@
   box-shadow: 0 24px 70px rgba(48, 13, 66, .32);
 }
 
-.payment-dialog::backdrop {
+.payment-dialog::backdrop,
+.payment-correction-dialog::backdrop {
   background: rgba(48, 13, 66, .55);
   backdrop-filter: blur(3px);
 }
 
-.payment-form {
+.payment-form,
+.payment-correction-form {
   display: grid;
   gap: 13px;
   padding: 20px;
 }
 
-.payment-close-button {
+.payment-correction-explanation,
+.payment-correction-target {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.5;
+}
+
+.payment-correction-target {
+  padding: 10px 12px;
+  border-radius: 11px;
+  color: var(--purple-700);
+  background: #fbf4fa;
+  font-weight: 900;
+}
+
+.payment-correction-confirm {
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #fff8e8;
+}
+
+.payment-close-button,
+.payment-correction-close {
   width: 38px;
   height: 38px;
   border: 0;
