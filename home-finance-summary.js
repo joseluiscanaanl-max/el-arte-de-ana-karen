@@ -6,24 +6,6 @@
     quotes: 'ak-quotes-v1',
   }
 
-  const STAGES = [
-    'Borrador',
-    'Cotización enviada',
-    'Esperando aprobación de cotización',
-    'Esperando anticipo',
-    'Anticipo recibido',
-    'Boceto en proceso',
-    'Esperando aprobación del boceto',
-    'Boceto aprobado',
-    'Pintura en proceso',
-    'Obra terminada',
-    'Esperando saldo',
-    'Pago completo',
-    'Lista para entregar',
-    'Entregada',
-    'Seguimiento al cliente',
-  ]
-
   const expandedClients = new Set()
 
   const load = (key, fallback) => {
@@ -42,11 +24,10 @@
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 
-  const money = (value) => new Intl.NumberFormat('es-MX', {
+  const money = (minor) => new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: 'MXN',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
+  }).format((Number(minor) || 0) / 100)
 
   const normalizeStatus = (value = '') => {
     const status = String(value).trim()
@@ -60,63 +41,71 @@
     return aliases[status] || status || 'Borrador'
   }
 
-  const priceOf = (quote) => Math.max(0, Number(quote?.price?.suggestedPrice) || 0)
+  const priceOf = (quote) => Math.max(0, Math.round((Number(quote?.price?.suggestedPrice) || 0) * 100))
   const depositOf = (quote) => Math.min(
     priceOf(quote),
-    Math.max(0, Number(quote?.price?.deposit) || 0)
+    Math.max(0, Math.round((Number(quote?.price?.deposit) || 0) * 100))
   )
 
-  const collectedFor = (quote) => {
-    const status = normalizeStatus(quote?.status)
-    if (status === 'Cancelada') return { deposit: 0, paid: 0 }
-
-    const stage = STAGES.indexOf(status)
-    const depositReceived = stage >= STAGES.indexOf('Anticipo recibido')
-      ? depositOf(quote)
-      : 0
-    const paid = stage >= STAGES.indexOf('Pago completo')
-      ? priceOf(quote)
-      : depositReceived
-
-    return { deposit: depositReceived, paid }
-  }
-
   const buildSummary = () => {
+    const loadedLedger = window.AKPaymentStorage.createStore(window.localStorage).load()
+    if (loadedLedger.status === 'corrupt' || loadedLedger.status === 'incompatible') {
+      return {
+        unavailable: true,
+        ledgerStatus: loadedLedger.status,
+        rows: [],
+        totals: null,
+        hasMigratedMovements: false,
+      }
+    }
+
+    const ledger = loadedLedger.ledger
     const clients = load(KEYS.clients, [])
     const quotes = load(KEYS.quotes, [])
-      .filter((quote) => normalizeStatus(quote.status) !== 'Cancelada')
     const clientNames = new Map(clients.map((client) => [client.id, client.name || 'Cliente']))
     const byClient = new Map()
+    let hasMigratedMovements = false
 
     quotes.forEach((quote) => {
       const quoted = priceOf(quote)
-      const collected = collectedFor(quote)
-      const difference = Math.max(0, quoted - collected.paid)
+      const requiredDeposit = depositOf(quote)
+      const financial = window.AKPayments.summarize(ledger, quote.id, {
+        priceMinor: quoted,
+        requiredDepositMinor: requiredDeposit,
+      })
+      const movements = window.AKPayments.movementsFor(ledger, quote.id)
+      const includesMigrated = movements.some((movement) => movement.migrated && movement.inferred && movement.needsReview)
+      if (includesMigrated) hasMigratedMovements = true
+      const coveredDeposit = Math.min(financial.totalPaidMinor, requiredDeposit)
       const clientId = quote.clientId || `sin-cliente-${quote.id}`
       const current = byClient.get(clientId) || {
         clientId,
         name: clientNames.get(quote.clientId) || 'Cliente sin nombre',
         works: 0,
         quoted: 0,
-        deposits: 0,
+        coveredDeposit: 0,
         paid: 0,
-        difference: 0,
+        pending: 0,
+        overpayment: 0,
         items: [],
       }
 
       current.works += 1
       current.quoted += quoted
-      current.deposits += collected.deposit
-      current.paid += collected.paid
-      current.difference += difference
+      current.coveredDeposit += coveredDeposit
+      current.paid += financial.totalPaidMinor
+      current.pending += financial.balanceMinor
+      current.overpayment += financial.overpaymentMinor
       current.items.push({
         quoteId: quote.id,
         title: quote.title || 'Obra sin nombre',
         status: normalizeStatus(quote.status),
         quoted,
-        deposit: collected.deposit,
-        paid: collected.paid,
-        difference,
+        coveredDeposit,
+        paid: financial.totalPaidMinor,
+        pending: financial.balanceMinor,
+        overpayment: financial.overpaymentMinor,
+        includesMigrated,
       })
       byClient.set(clientId, current)
     })
@@ -125,23 +114,24 @@
       .map((row) => ({
         ...row,
         items: row.items.sort((a, b) => {
-          if (b.difference !== a.difference) return b.difference - a.difference
+          if (b.pending !== a.pending) return b.pending - a.pending
           return a.title.localeCompare(b.title, 'es')
         }),
       }))
       .sort((a, b) => {
-        if (b.difference !== a.difference) return b.difference - a.difference
+        if (b.pending !== a.pending) return b.pending - a.pending
         return a.name.localeCompare(b.name, 'es')
       })
 
     const totals = rows.reduce((sum, row) => ({
       quoted: sum.quoted + row.quoted,
-      deposits: sum.deposits + row.deposits,
+      coveredDeposit: sum.coveredDeposit + row.coveredDeposit,
       paid: sum.paid + row.paid,
-      difference: sum.difference + row.difference,
-    }), { quoted: 0, deposits: 0, paid: 0, difference: 0 })
+      pending: sum.pending + row.pending,
+      overpayment: sum.overpayment + row.overpayment,
+    }), { quoted: 0, coveredDeposit: 0, paid: 0, pending: 0, overpayment: 0 })
 
-    return { rows, totals }
+    return { unavailable: false, rows, totals, hasMigratedMovements }
   }
 
   const ensureStyles = () => {
@@ -305,6 +295,26 @@
         color: #705a7f;
         text-align: center;
       }
+      .ak-finance-unavailable {
+        grid-column: 1 / -1;
+        padding: 16px;
+        border: 1px solid #f1b8b8;
+        color: #8f2525;
+        background: #fff1f1;
+      }
+      .ak-finance-overpayment {
+        margin: 10px 0 0;
+        padding: 9px 11px;
+        border-radius: 10px;
+        color: #7b4c00;
+        background: #fff2cf;
+        font-size: .76rem;
+        font-weight: 900;
+      }
+      .ak-finance-migrated-note {
+        color: #7b4c00;
+        font-weight: 900;
+      }
       @media (max-width: 760px) {
         .ak-finance-work-card {
           grid-template-columns: 1fr 1fr;
@@ -322,23 +332,31 @@
   }
 
   const workDetailMarkup = (row) => row.items.map((item) => `
-    <article class="ak-finance-work-card">
+    <article class="ak-finance-work-card" data-ak-finance-quote-id="${escapeHtml(item.quoteId)}">
       <div class="ak-finance-work-title">
         <strong>${escapeHtml(item.title)}</strong>
         <small>${escapeHtml(item.status)}</small>
       </div>
       <div class="ak-finance-work-value"><span>Cotizado</span><b>${money(item.quoted)}</b></div>
-      <div class="ak-finance-work-value"><span>Anticipo</span><b>${money(item.deposit)}</b></div>
+      <div class="ak-finance-work-value"><span>Anticipo cubierto</span><b>${money(item.coveredDeposit)}</b></div>
       <div class="ak-finance-work-value is-paid"><span>Pagado</span><b>${money(item.paid)}</b></div>
-      <div class="ak-finance-work-value ${item.difference ? 'is-difference' : 'is-paid'}"><span>Diferencia</span><b>${money(item.difference)}</b></div>
+      <div class="ak-finance-work-value ${item.pending ? 'is-difference' : 'is-paid'}"><span>Pendiente</span><b>${money(item.pending)}</b></div>
+      ${item.overpayment ? `<p class="ak-finance-overpayment">Sobrepago: ${money(item.overpayment)}</p>` : ''}
+      ${item.includesMigrated ? '<p class="ak-finance-overpayment ak-finance-migrated-note">Incluye información migrada de V1 pendiente de revisión.</p>' : ''}
     </article>
   `).join('')
 
-  const detailMarkup = ({ rows, totals }) => {
+  const detailMarkup = ({ unavailable, ledgerStatus, rows, totals, hasMigratedMovements }) => {
+    if (unavailable) {
+      return `
+        <div class="ak-finance-detail-header"><div><h4>Detalle por cliente</h4></div></div>
+        <p class="ak-finance-empty" role="alert">El resumen financiero no puede calcularse porque el ledger está ${ledgerStatus === 'corrupt' ? 'dañado' : 'en un esquema incompatible'}. Revisa los datos de pagos; la información original se conservó sin cambios.</p>
+      `
+    }
     if (!rows.length) {
       return `
         <div class="ak-finance-detail-header">
-          <div><h4>Detalle por cliente</h4><p>Anticipos, pagos y diferencia pendiente.</p></div>
+          <div><h4>Detalle por cliente</h4><p>Anticipo cubierto, pagos reales y saldo pendiente.</p></div>
         </div>
         <p class="ak-finance-empty">Todavía no hay cotizaciones para mostrar.</p>
       `
@@ -356,9 +374,9 @@
             </button>
           </td>
           <td>${money(row.quoted)}</td>
-          <td>${money(row.deposits)}</td>
+          <td>${money(row.coveredDeposit)}</td>
           <td class="ak-finance-paid">${money(row.paid)}</td>
-          <td class="${row.difference ? 'ak-finance-difference' : 'ak-finance-zero'}">${money(row.difference)}</td>
+          <td class="${row.pending ? 'ak-finance-difference' : 'ak-finance-zero'}">${money(row.pending)}</td>
         </tr>
         <tr class="ak-finance-work-row" data-ak-finance-detail-for="${escapeHtml(key)}" ${expanded ? '' : 'hidden'}>
           <td colspan="5"><div class="ak-finance-work-list">${workDetailMarkup(row)}</div></td>
@@ -372,14 +390,14 @@
       </div>
       <div class="ak-finance-table-wrap">
         <table class="ak-finance-table">
-          <thead><tr><th>Cliente</th><th>Cotizado</th><th>Anticipos</th><th>Pagado</th><th>Diferencia</th></tr></thead>
+          <thead><tr><th>Cliente</th><th>Cotizado</th><th>Anticipo cubierto</th><th>Pagado</th><th>Pendiente</th></tr></thead>
           <tbody>
             ${body}
-            <tr class="ak-finance-total"><td>Total del taller</td><td>${money(totals.quoted)}</td><td>${money(totals.deposits)}</td><td>${money(totals.paid)}</td><td>${money(totals.difference)}</td></tr>
+            <tr class="ak-finance-total"><td>Total del taller</td><td>${money(totals.quoted)}</td><td>${money(totals.coveredDeposit)}</td><td>${money(totals.paid)}</td><td>${money(totals.pending)}</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="ak-finance-note">Calculado según la etapa de cada encargo. Los pedidos cancelados no se incluyen.</p>
+      <p class="ak-finance-note">Calculado exclusivamente con los movimientos reales del ledger.${hasMigratedMovements ? ' <span class="ak-finance-migrated-note">Puede existir información migrada de V1 pendiente de revisión.</span>' : ''}${totals.overpayment ? ` <span class="ak-finance-overpayment">Sobrepago total: ${money(totals.overpayment)}</span>` : ''}</p>
     `
   }
 
@@ -399,12 +417,14 @@
     if (metrics.dataset.akFinanceSignature === signature) return
 
     metrics.dataset.akFinanceSignature = signature
-    metrics.innerHTML = `
-      <article><span>Cotizado</span><strong>${money(summary.totals.quoted)}</strong></article>
-      <article><span>Anticipos recibidos</span><strong>${money(summary.totals.deposits)}</strong></article>
-      <article><span>Pagado</span><strong>${money(summary.totals.paid)}</strong></article>
-      <article><span>Diferencia por cobrar</span><strong>${money(summary.totals.difference)}</strong></article>
-    `
+    metrics.innerHTML = summary.unavailable
+      ? '<article class="ak-finance-unavailable" role="alert">Resumen financiero no disponible hasta revisar el ledger de pagos.</article>'
+      : `
+        <article data-ak-finance-metric="quoted"><span>Cotizado</span><strong>${money(summary.totals.quoted)}</strong></article>
+        <article data-ak-finance-metric="covered-deposit"><span>Anticipo cubierto</span><strong>${money(summary.totals.coveredDeposit)}</strong></article>
+        <article data-ak-finance-metric="paid"><span>Pagado</span><strong>${money(summary.totals.paid)}</strong></article>
+        <article data-ak-finance-metric="pending"><span>Pendiente</span><strong>${money(summary.totals.pending)}</strong></article>
+      `
 
     let detail = summarySection.querySelector('.ak-finance-detail')
     if (!detail) {
