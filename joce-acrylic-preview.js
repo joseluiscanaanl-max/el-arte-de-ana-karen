@@ -6,53 +6,63 @@
   const PRESETS = [
     { key:'simple', label:'Fondo sencillo', background:'Sencillo', description:'Simple, limpio y con muy pocos detalles en el fondo.' },
     { key:'medium', label:'Fondo medio', background:'Detallado', description:'Fondo equilibrado, suave y todavía sencillo.' },
-    { key:'detailed', label:'Fondo detallado', background:'Muy detallado', description:'Conserva más del entorno sin perder el estilo acrílico sencillo.' },
+    { key:'detailed', label:'Fondo detallado', background:'Muy detallado', description:'Conserva más elementos del entorno.' },
   ]
 
   let selectedKey = 'simple'
   let lastSignature = ''
   let timer = null
-  let generationId = 0
-  let activeGeneration = null
 
   const injectStyles = () => {
     if (document.getElementById(STYLE_ID)) return
     const style = document.createElement('style')
     style.id = STYLE_ID
     style.textContent = `
-      .ak-acrylic-preview { display:grid; gap:12px; padding-top:2px; }
-      .ak-acrylic-preview__head h4 { margin:0; color:var(--purple-900); font-size:1.08rem; }
-      .ak-acrylic-preview__head p { margin:5px 0 0; color:var(--muted); line-height:1.45; }
-      .ak-acrylic-preview__grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-      .ak-acrylic-card { position:relative; display:grid; gap:8px; min-width:0; padding:10px; border:2px solid var(--line); border-radius:18px; background:#fffaff; color:var(--purple-900); text-align:left; transition:.18s ease; cursor:pointer; }
-      .ak-acrylic-card:hover { transform:translateY(-1px); border-color:#dca0d0; }
-      .ak-acrylic-card.is-selected { border-color:var(--pink-600); background:linear-gradient(145deg,#fffaff,#fdf0fa); box-shadow:0 10px 24px rgba(226,31,151,.13); }
-      .ak-acrylic-card canvas { display:block; width:100%; aspect-ratio:var(--ak-photo-aspect,4/3); border-radius:13px; background:#f3eaf6; object-fit:contain; }
-      .ak-acrylic-card__label { color:var(--pink-600); font-size:.72rem; font-weight:900; letter-spacing:.05em; text-transform:uppercase; }
-      .ak-acrylic-card__description { color:var(--muted); font-size:.78rem; line-height:1.38; }
-      .ak-acrylic-card__status { min-height:18px; color:#8a6b92; font-size:.7rem; line-height:1.25; }
-      .ak-acrylic-card[data-state="loading"] .ak-acrylic-card__status::before { content:'✦ '; color:var(--pink-600); }
-      .ak-acrylic-card[data-state="error"] .ak-acrylic-card__status { color:#a03c57; }
-      .ak-acrylic-card__check { position:absolute; top:17px; right:17px; display:none; width:25px; height:25px; place-items:center; border-radius:50%; background:var(--pink-600); color:#fff; font-weight:900; box-shadow:0 5px 15px rgba(226,31,151,.25); }
-      .ak-acrylic-card.is-selected .ak-acrylic-card__check { display:grid; }
-      .ak-acrylic-preview__selection { display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px; padding:12px 13px; border-radius:15px; background:#fbf2fa; color:#51396a; }
-      .ak-acrylic-preview__selection strong { color:var(--purple-900); }
-      .ak-acrylic-preview__use { min-height:42px; padding:9px 15px; border:0; border-radius:12px; background:linear-gradient(135deg,var(--purple-700),var(--pink-600)); color:#fff; font:inherit; font-weight:900; cursor:pointer; }
-      .ak-acrylic-preview__use:disabled { opacity:.45; cursor:not-allowed; }
-      .ak-acrylic-preview__note { margin:0; color:var(--muted); font-size:.76rem; line-height:1.4; }
-      @media (max-width:760px) { .ak-acrylic-preview__grid { grid-template-columns:1fr; } }
-      @media (max-width:520px) { .ak-acrylic-preview__selection { grid-template-columns:1fr; } .ak-acrylic-preview__use { width:100%; } }
+      .ak-acrylic-preview{display:grid;gap:12px;padding-top:2px}
+      .ak-acrylic-preview__head h4{margin:0;color:var(--purple-900);font-size:1.08rem}
+      .ak-acrylic-preview__head p{margin:5px 0 0;color:var(--muted);line-height:1.45}
+      .ak-acrylic-preview__grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+      .ak-acrylic-card{position:relative;display:grid;gap:8px;min-width:0;padding:10px;border:2px solid var(--line);border-radius:18px;background:#fffaff;color:var(--purple-900);text-align:left;transition:.18s ease;cursor:pointer}
+      .ak-acrylic-card:hover{transform:translateY(-1px);border-color:#dca0d0}
+      .ak-acrylic-card.is-selected{border-color:var(--pink-600);background:linear-gradient(145deg,#fffaff,#fdf0fa);box-shadow:0 10px 24px rgba(226,31,151,.13)}
+      .ak-acrylic-card canvas{display:block;width:100%;aspect-ratio:var(--ak-photo-aspect,4/3);border-radius:13px;background:#f3eaf6;object-fit:contain}
+      .ak-acrylic-card__label{color:var(--pink-600);font-size:.72rem;font-weight:900;letter-spacing:.05em;text-transform:uppercase}
+      .ak-acrylic-card__description{color:var(--muted);font-size:.78rem;line-height:1.38}
+      .ak-acrylic-card__status{min-height:18px;color:#8a6b92;font-size:.7rem;line-height:1.25}
+      .ak-acrylic-card__check{position:absolute;top:17px;right:17px;display:none;width:25px;height:25px;place-items:center;border-radius:50%;background:var(--pink-600);color:#fff;font-weight:900;box-shadow:0 5px 15px rgba(226,31,151,.25)}
+      .ak-acrylic-card.is-selected .ak-acrylic-card__check{display:grid}
+      .ak-acrylic-preview__selection{display:grid;grid-template-columns:1fr auto;align-items:center;gap:10px;padding:12px 13px;border-radius:15px;background:#fbf2fa;color:#51396a}
+      .ak-acrylic-preview__selection strong{color:var(--purple-900)}
+      .ak-acrylic-preview__use{min-height:42px;padding:9px 15px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--purple-700),var(--pink-600));color:#fff;font:inherit;font-weight:900;cursor:pointer}
+      .ak-acrylic-preview__note{margin:0;color:var(--muted);font-size:.76rem;line-height:1.4}
+      @media(max-width:760px){.ak-acrylic-preview__grid{grid-template-columns:1fr}}
+      @media(max-width:520px){.ak-acrylic-preview__selection{grid-template-columns:1fr}.ak-acrylic-preview__use{width:100%}}
     `
     document.head.appendChild(style)
   }
 
-  const endpoint = () => {
-    if (window.JOCE_AI_ENDPOINT) return String(window.JOCE_AI_ENDPOINT).replace(/\/$/, '')
-    if (location.hostname.endsWith('.vercel.app')) return '/api/joce-acrylic'
-    return ''
-  }
-
   const selectedPreset = () => PRESETS.find((preset) => preset.key === selectedKey) || PRESETS[0]
+
+  const drawReference = (canvas, image, preset) => {
+    const maxSide = 720
+    const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
+    const width = Math.max(1, Math.round(image.naturalWidth * ratio))
+    const height = Math.max(1, Math.round(image.naturalHeight * ratio))
+    canvas.width = width
+    canvas.height = height
+    canvas.style.setProperty('--ak-photo-aspect', `${width}/${height}`)
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0, width, height)
+    const barHeight = Math.max(38, Math.round(height * .12))
+    ctx.fillStyle = 'rgba(54,21,74,.78)'
+    ctx.fillRect(0, height - barHeight, width, barHeight)
+    ctx.fillStyle = '#fff'
+    ctx.font = `700 ${Math.max(13, Math.round(width * .023))}px system-ui,sans-serif`
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(`${preset.label} · referencia para cotización`, width / 2, height - barHeight / 2)
+    canvas.dataset.aiReady = 'true'
+  }
 
   const updateSelection = () => {
     const section = document.getElementById(SECTION_ID)
@@ -64,10 +74,7 @@
     })
     const preset = selectedPreset()
     const label = section.querySelector('[data-ak-acrylic-selection]')
-    if (label) label.innerHTML = `Vista seleccionada: <strong>${preset.label}</strong>`
-    const use = section.querySelector('[data-ak-use-acrylic]')
-    const activeCanvas = section.querySelector(`[data-ak-acrylic-canvas="${selectedKey}"]`)
-    if (use) use.disabled = !activeCanvas?.dataset.aiReady
+    if (label) label.innerHTML = `Nivel elegido: <strong>${preset.label}</strong>`
   }
 
   const applySelected = () => {
@@ -86,105 +93,7 @@
     if (strong) strong.textContent = preset.background
 
     const status = document.getElementById('ak-analysis-status')
-    if (status) status.textContent = `${preset.label} aplicado. JoCe actualizará horas y precio según este nivel de detalle.`
-  }
-
-  const resizePhoto = (image) => {
-    const maxSide = 1024
-    const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
-    const width = Math.max(1, Math.round(image.naturalWidth * ratio))
-    const height = Math.max(1, Math.round(image.naturalHeight * ratio))
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    context.imageSmoothingEnabled = true
-    context.imageSmoothingQuality = 'high'
-    context.drawImage(image, 0, 0, width, height)
-    return { dataUrl:canvas.toDataURL('image/jpeg', .86), orientation:height > width ? 'portrait' : 'landscape', width, height }
-  }
-
-  const drawPlaceholder = (canvas, image, text) => {
-    const maxSide = 720
-    const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
-    const width = Math.max(1, Math.round(image.naturalWidth * ratio))
-    const height = Math.max(1, Math.round(image.naturalHeight * ratio))
-    canvas.width = width
-    canvas.height = height
-    canvas.style.setProperty('--ak-photo-aspect', `${width}/${height}`)
-    const context = canvas.getContext('2d')
-    context.drawImage(image, 0, 0, width, height)
-    context.save()
-    context.fillStyle = 'rgba(255,248,253,.82)'
-    context.fillRect(0, 0, width, height)
-    context.fillStyle = '#6b3974'
-    context.font = `700 ${Math.max(15, Math.round(width * .028))}px system-ui, sans-serif`
-    context.textAlign = 'center'
-    context.textBaseline = 'middle'
-    context.fillText(text, width / 2, height / 2)
-    context.restore()
-  }
-
-  const drawDataUrl = (canvas, dataUrl) => new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => {
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-      canvas.style.setProperty('--ak-photo-aspect', `${image.naturalWidth}/${image.naturalHeight}`)
-      const context = canvas.getContext('2d')
-      context.clearRect(0, 0, canvas.width, canvas.height)
-      context.drawImage(image, 0, 0)
-      canvas.dataset.aiReady = 'true'
-      resolve()
-    }
-    image.onerror = reject
-    image.src = dataUrl
-  })
-
-  const generateVariant = async (state, preset) => {
-    if (!state || state.id !== generationId) return
-    const { section, photo, prepared, id } = state
-    const card = section.querySelector(`[data-ak-acrylic-key="${preset.key}"]`)
-    const canvas = section.querySelector(`[data-ak-acrylic-canvas="${preset.key}"]`)
-    const status = card?.querySelector('.ak-acrylic-card__status')
-    if (!card || !canvas || canvas.dataset.aiReady || card.dataset.state === 'loading') return
-
-    card.dataset.state = 'loading'
-    if (status) status.textContent = 'JOCE está pintando esta opción…'
-    drawPlaceholder(canvas, photo, 'Pintando con IA…')
-
-    const target = endpoint()
-    if (!target) {
-      card.dataset.state = 'error'
-      if (status) status.textContent = 'Abre la versión de Vercel para usar la IA.'
-      drawPlaceholder(canvas, photo, 'Disponible en Vercel')
-      return
-    }
-
-    try {
-      const response = await fetch(target, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
-        body:JSON.stringify({ imageDataUrl:prepared.dataUrl, orientation:prepared.orientation, variant:preset.key }),
-      })
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok || !payload.dataUrl) throw new Error(payload.message || 'No fue posible generar la imagen.')
-      if (id !== generationId) return
-      await drawDataUrl(canvas, payload.dataUrl)
-      card.dataset.state = 'ready'
-      if (status) status.textContent = 'Vista con IA lista.'
-      updateSelection()
-    } catch (error) {
-      if (id !== generationId) return
-      card.dataset.state = 'error'
-      if (status) status.textContent = error?.message || 'No fue posible generar esta opción.'
-      drawPlaceholder(canvas, photo, 'Toca para reintentar')
-    }
-  }
-
-  const generatePreset = (key) => {
-    const preset = PRESETS.find((item) => item.key === key)
-    if (preset && activeGeneration) generateVariant(activeGeneration, preset)
+    if (status) status.textContent = `${preset.label} aplicado. JOCE actualizó la cotización según este nivel de detalle.`
   }
 
   const renderSection = (image) => {
@@ -207,43 +116,39 @@
     selectedKey = 'simple'
     section.innerHTML = `
       <div class="ak-acrylic-preview__head">
-        <h4>Vista previa del cuadro con IA</h4>
-        <p>JOCE conserva la fotografía y aplica el estilo fijo aprobado: acrílico sencillo sobre lienzo.</p>
+        <h4>Referencia del cuadro</h4>
+        <p>Elige el nivel de detalle del fondo para que JOCE calcule horas, materiales y precio.</p>
       </div>
       <div class="ak-acrylic-preview__grid">
         ${PRESETS.map((preset) => `
-          <button class="ak-acrylic-card" type="button" data-ak-acrylic-key="${preset.key}" aria-pressed="false" data-state="idle">
+          <button class="ak-acrylic-card" type="button" data-ak-acrylic-key="${preset.key}" aria-pressed="false">
             <span class="ak-acrylic-card__check">✓</span>
-            <canvas data-ak-acrylic-canvas="${preset.key}" aria-label="Simulación ${preset.label}"></canvas>
+            <canvas data-ak-acrylic-canvas="${preset.key}" aria-label="Referencia ${preset.label}"></canvas>
             <strong class="ak-acrylic-card__label">${preset.label}</strong>
             <span class="ak-acrylic-card__description">${preset.description}</span>
-            <span class="ak-acrylic-card__status">${preset.key === 'simple' ? 'Preparando…' : 'Toca para generar esta vista.'}</span>
+            <span class="ak-acrylic-card__status">La obra final será pintada a mano por Ana Karen.</span>
           </button>
         `).join('')}
       </div>
       <div class="ak-acrylic-preview__selection">
         <span data-ak-acrylic-selection></span>
-        <button class="ak-acrylic-preview__use" type="button" data-ak-use-acrylic disabled>Usar esta vista</button>
+        <button class="ak-acrylic-preview__use" type="button" data-ak-use-acrylic>Usar este nivel</button>
       </div>
-      <p class="ak-acrylic-preview__note">La opción sencilla se genera primero para ahorrar la cuota gratuita. Las otras vistas se generan únicamente cuando las solicitas. La obra final será pintada a mano por Ana Karen.</p>
+      <p class="ak-acrylic-preview__note">V1 estable: la fotografía se usa como referencia de composición. La vista artística con IA queda preparada como mejora futura y no afecta la cotización ni el pedido.</p>
     `
 
     PRESETS.forEach((preset) => {
       const canvas = section.querySelector(`[data-ak-acrylic-canvas="${preset.key}"]`)
-      if (canvas) drawPlaceholder(canvas, image, preset.key === 'simple' ? 'Preparando vista…' : 'Toca para generar')
+      if (canvas) drawReference(canvas, image, preset)
     })
-
-    const id = ++generationId
-    activeGeneration = { id, section, photo:image, prepared:resizePhoto(image) }
     updateSelection()
-    generatePreset('simple')
   }
 
   const ensure = () => {
     const result = document.getElementById('ak-analysis-result')
     const image = document.getElementById('ak-photo-preview')
     if (!result?.classList.contains('is-visible') || !image?.naturalWidth || !image?.naturalHeight) return
-    const signature = `${image.currentSrc || image.src}|${image.naturalWidth}x${image.naturalHeight}|hf-free-v2`
+    const signature = `${image.currentSrc || image.src}|${image.naturalWidth}x${image.naturalHeight}|stable-v1`
     if (signature === lastSignature && document.getElementById(SECTION_ID)) return
     lastSignature = signature
     renderSection(image)
@@ -259,8 +164,6 @@
     if (card) {
       selectedKey = card.dataset.akAcrylicKey || 'simple'
       updateSelection()
-      const canvas = card.querySelector('canvas')
-      if (!canvas?.dataset.aiReady && card.dataset.state !== 'loading') generatePreset(selectedKey)
       return
     }
     if (event.target.closest?.('[data-ak-use-acrylic]')) applySelected()
@@ -268,10 +171,8 @@
 
   document.addEventListener('change', (event) => {
     if (event.target?.id === 'ak-reference-photo') {
-      generationId += 1
-      activeGeneration = null
       lastSignature = ''
-      schedule(260)
+      schedule(220)
     }
   })
 
