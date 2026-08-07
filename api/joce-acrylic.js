@@ -1,22 +1,19 @@
 export const config = { maxDuration: 60 }
 
+const SPACE = 'https://akhaliq-qwen-image-edit-2511-lightning.hf.space'
+
 const VARIANTS = {
-  simple: 'Simplify the background strongly: broad calm shapes, very few small details, soft warm neutral and natural colors. Keep only the main plants and large architectural masses.',
-  medium: 'Keep a balanced background: recognizable plants and architecture, but simplify small objects and people into broad acrylic shapes with moderate detail.',
-  detailed: 'Keep the background recognizable with somewhat more environmental detail, while still clearly hand-painted, simplified, and less detailed than a photograph.',
+  simple: 'Simplify the background strongly. Use broad calm shapes, very few small details, soft warm natural colors, and keep only the main plants and large architectural masses.',
+  medium: 'Keep a balanced simple background. Preserve recognizable plants and architecture but simplify small objects and distant people into broad acrylic shapes.',
+  detailed: 'Keep more of the recognizable environment and plants, but still simplify all small details so the complete image remains clearly handmade acrylic rather than photographic.',
 }
 
-const BASE_PROMPT = `Transform the supplied reference photograph into a SIMPLE HAND-PAINTED ACRYLIC PAINTING ON CANVAS.
-
-NON-NEGOTIABLE RULES:
-- Preserve the same people, facial identity, expressions, pose, clothing, objects they are holding, camera angle, crop, and overall composition.
-- The people themselves must visibly look painted in acrylic; never leave photographic skin or photographic clothing.
-- Use broad simple visible brushstrokes, opaque matte acrylic paint, subtle canvas weave, simplified shapes, warm natural colors, and low visual complexity.
-- The result must look like a real beginner-to-intermediate handmade acrylic portrait on stretched canvas, not a photo filter, not digital airbrush, not vector art, not cartoon, and not hyperrealism.
-- Do not beautify, age, de-age, add or remove people, change eyewear, change clothes, change hands, change food/objects, or invent text/logos.
-- Keep faces recognizable and natural while reducing tiny photographic details.
-- Preserve the original horizontal or vertical composition.
-- No decorative frame, no captions, no typography, no watermark.`
+const BASE_PROMPT = `Transform this exact reference photograph into a SIMPLE HAND-PAINTED ACRYLIC PAINTING ON CANVAS.
+Preserve the same people, recognizable faces, expressions, pose, clothing, objects in their hands, camera angle, crop and overall composition.
+Paint the people themselves in acrylic too: no photographic skin, hair or clothing.
+Use broad simple visible brushstrokes, opaque matte acrylic paint, subtle canvas weave, simplified forms, warm natural colors and low visual complexity.
+The result must look like a real handmade beginner-to-intermediate acrylic portrait on stretched canvas, not a photo filter, not airbrush, not vector art, not cartoon and not hyperrealism.
+Do not beautify, age, de-age, add or remove people, change eyewear, clothes, hands, food or other objects. Do not add text, logos, frames or watermarks.`
 
 const allowCors = (req, res) => {
   const origin = String(req.headers.origin || '')
@@ -40,62 +37,136 @@ const parseDataUrl = (value) => {
   return { mime, buffer: Buffer.from(match[2], 'base64') }
 }
 
+const hfHeaders = () => {
+  const headers = {}
+  if (process.env.HF_TOKEN) headers.Authorization = `Bearer ${process.env.HF_TOKEN}`
+  return headers
+}
+
+const inferEndpoint = async () => {
+  try {
+    const response = await fetch(`${SPACE}/gradio_api/info`, { headers: hfHeaders() })
+    if (!response.ok) return 'infer'
+    const info = await response.json()
+    const names = Object.keys(info?.named_endpoints || {})
+    const selected = names.find((name) => name.toLowerCase().includes('infer')) || names[0]
+    return String(selected || '/infer').replace(/^\//, '')
+  } catch {
+    return 'infer'
+  }
+}
+
+const uploadImage = async (parsed) => {
+  const extension = parsed.mime === 'image/png' ? 'png' : parsed.mime === 'image/webp' ? 'webp' : 'jpg'
+  const form = new FormData()
+  form.append('files', new Blob([parsed.buffer], { type: parsed.mime }), `reference.${extension}`)
+
+  const response = await fetch(`${SPACE}/gradio_api/upload`, {
+    method: 'POST',
+    headers: hfHeaders(),
+    body: form,
+  })
+  if (!response.ok) throw new Error(`hf_upload_${response.status}`)
+
+  const payload = await response.json()
+  const path = Array.isArray(payload) ? payload[0] : payload?.files?.[0] || payload?.path
+  if (!path) throw new Error('hf_upload_empty')
+  return {
+    path,
+    orig_name: `reference.${extension}`,
+    meta: { _type: 'gradio.FileData' },
+  }
+}
+
+const readCompleteData = (text) => {
+  const lines = String(text || '').split(/\r?\n/)
+  let lastData = null
+  let event = ''
+  for (const line of lines) {
+    if (line.startsWith('event:')) event = line.slice(6).trim()
+    if (line.startsWith('data:')) {
+      const raw = line.slice(5).trim()
+      if (event === 'complete' || !event) {
+        try { lastData = JSON.parse(raw) } catch { /* keep polling result parsing tolerant */ }
+      }
+    }
+  }
+  return lastData
+}
+
+const resultUrl = (value) => {
+  const first = Array.isArray(value) ? value[0] : value
+  if (!first) return ''
+  if (typeof first === 'string') {
+    if (/^https?:\/\//.test(first)) return first
+    if (first.startsWith('/')) return `${SPACE}/gradio_api/file=${first}`
+    return ''
+  }
+  if (first.url) return first.url
+  if (first.path) return /^https?:\/\//.test(first.path) ? first.path : `${SPACE}/gradio_api/file=${first.path}`
+  return ''
+}
+
+const generateWithQwen = async (parsed, prompt) => {
+  const endpoint = await inferEndpoint()
+  const file = await uploadImage(parsed)
+  const seed = 24681357
+
+  const submit = await fetch(`${SPACE}/gradio_api/call/${endpoint}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...hfHeaders() },
+    body: JSON.stringify({
+      data: [file, prompt, seed, false, 1.0, 4],
+    }),
+  })
+  if (!submit.ok) throw new Error(`hf_submit_${submit.status}`)
+
+  const submitted = await submit.json()
+  if (!submitted?.event_id) throw new Error('hf_event_missing')
+
+  const result = await fetch(`${SPACE}/gradio_api/call/${endpoint}/${submitted.event_id}`, {
+    headers: hfHeaders(),
+  })
+  if (!result.ok) throw new Error(`hf_result_${result.status}`)
+
+  const completed = readCompleteData(await result.text())
+  const url = resultUrl(completed)
+  if (!url) throw new Error('hf_image_missing')
+
+  const imageResponse = await fetch(url, { headers: hfHeaders() })
+  if (!imageResponse.ok) throw new Error(`hf_file_${imageResponse.status}`)
+  const mime = imageResponse.headers.get('content-type') || 'image/png'
+  const buffer = Buffer.from(await imageResponse.arrayBuffer())
+  return `data:${mime};base64,${buffer.toString('base64')}`
+}
+
 export default async function handler(req, res) {
   allowCors(req, res)
 
   if (req.method === 'OPTIONS') return res.status(204).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' })
 
-  if (!process.env.OPENAI_API_KEY) {
-    return res.status(503).json({
-      error: 'openai_not_configured',
-      message: 'Falta configurar OPENAI_API_KEY en Vercel.',
-    })
-  }
-
-  const { imageDataUrl, variant = 'medium', orientation = 'landscape' } = req.body || {}
+  const { imageDataUrl, variant = 'simple' } = req.body || {}
   const parsed = parseDataUrl(imageDataUrl)
   if (!parsed) return res.status(400).json({ error: 'invalid_image' })
-  if (parsed.buffer.length > 5_500_000) return res.status(413).json({ error: 'image_too_large' })
+  if (parsed.buffer.length > 4_500_000) return res.status(413).json({ error: 'image_too_large' })
 
-  const variantPrompt = VARIANTS[variant] || VARIANTS.medium
+  const variantPrompt = VARIANTS[variant] || VARIANTS.simple
   const prompt = `${BASE_PROMPT}\n\nBACKGROUND OPTION: ${variantPrompt}`
-  const extension = parsed.mime === 'image/png' ? 'png' : parsed.mime === 'image/webp' ? 'webp' : 'jpg'
-  const imageBlob = new Blob([parsed.buffer], { type: parsed.mime })
-  const form = new FormData()
-  form.append('model', 'gpt-image-2')
-  form.append('prompt', prompt)
-  form.append('image', imageBlob, `reference.${extension}`)
-  form.append('quality', 'medium')
-  form.append('size', orientation === 'portrait' ? '1024x1536' : '1536x1024')
-  form.append('output_format', 'jpeg')
 
   try {
-    const response = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: form,
-    })
-
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      console.error('OpenAI image edit failed', response.status, payload)
-      return res.status(response.status >= 500 ? 502 : 400).json({
-        error: 'image_generation_failed',
-        message: payload?.error?.message || 'No fue posible generar la vista acrílica.',
-      })
-    }
-
-    const b64 = payload?.data?.[0]?.b64_json
-    if (!b64) return res.status(502).json({ error: 'empty_image_response' })
-
+    const dataUrl = await generateWithQwen(parsed, prompt)
     res.setHeader('Cache-Control', 'no-store')
-    return res.status(200).json({
-      variant,
-      dataUrl: `data:image/jpeg;base64,${b64}`,
-    })
+    return res.status(200).json({ variant, provider: 'huggingface-qwen-lightning', dataUrl })
   } catch (error) {
-    console.error('JOCE acrylic endpoint error', error)
-    return res.status(502).json({ error: 'service_unavailable' })
+    console.error('JOCE Hugging Face acrylic endpoint error', error)
+    const code = String(error?.message || '')
+    const quota = code.includes('429') || code.includes('quota')
+    return res.status(quota ? 429 : 502).json({
+      error: quota ? 'free_quota_exhausted' : 'service_unavailable',
+      message: quota
+        ? 'La cuota gratuita de IA está ocupada o agotada por ahora. Intenta de nuevo más tarde.'
+        : 'La IA gratuita no respondió en este momento. Intenta nuevamente.',
+    })
   }
 }
