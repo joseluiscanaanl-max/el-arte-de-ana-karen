@@ -46,8 +46,7 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
 
   const openOrders = async () => {
     const ordersNavigation = page.getByRole('button', { name: /Pedidos/ })
-    await ordersNavigation.focus()
-    await page.keyboard.press('Enter')
+    await ordersNavigation.click()
     await expect(page.getByRole('heading', { name: 'Mis encargos' })).toBeVisible()
   }
 
@@ -78,8 +77,7 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
 
   await test.step('crear un cliente identificable', async () => {
     const clientsNavigation = page.getByRole('button', { name: /Clientes/ })
-    await clientsNavigation.focus()
-    await page.keyboard.press('Enter')
+    await clientsNavigation.click()
     await expect(page.getByRole('heading', { name: 'Clientes' })).toBeVisible()
     await page.getByRole('button', { name: /Agregar/ }).click()
 

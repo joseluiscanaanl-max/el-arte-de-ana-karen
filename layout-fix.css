@@ -3,6 +3,12 @@ html {
   scroll-padding-bottom: calc(150px + env(safe-area-inset-bottom));
 }
 
+@media (max-width: 719px) {
+  .page-stack {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .main-content {
   padding-bottom: calc(260px + env(safe-area-inset-bottom)) !important;
 }
