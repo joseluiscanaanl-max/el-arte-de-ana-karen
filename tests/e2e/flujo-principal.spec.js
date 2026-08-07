@@ -50,6 +50,18 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Mis encargos' })).toBeVisible()
   }
 
+  const registerPayment = async ({ category, amount, note }) => {
+    const card = orderCard()
+    const section = card.locator('.order-payments')
+    await section.getByRole('button', { name: 'Registrar pago' }).click()
+    const dialog = section.getByRole('dialog', { name: 'Registrar pago' })
+    await dialog.getByLabel('Tipo de pago').selectOption(category)
+    await dialog.getByLabel('Importe en pesos').fill(Number(amount).toFixed(2))
+    await dialog.getByLabel('Nota (opcional)').fill(note)
+    await dialog.getByRole('button', { name: 'Guardar pago' }).click()
+    await expect(dialog).not.toBeVisible()
+  }
+
   const advanceTo = async (status) => {
     const card = orderCard()
     await expect(card).toBeVisible()
@@ -141,6 +153,19 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
 
   await test.step('avanzar por anticipo, producción, pago y entrega', async () => {
     for (const status of workflow) {
+      if (status === 'Anticipo recibido') {
+        const quote = await storedQuote()
+        await registerPayment({ category: 'deposit', amount: quote.price.deposit, note: 'Anticipo flujo principal E2E' })
+      }
+
+      if (status === 'Pago completo') {
+        const quote = await storedQuote()
+        const remaining = quote.price.suggestedPrice - quote.price.deposit
+        if (remaining > 0) {
+          await registerPayment({ category: 'final', amount: remaining, note: 'Saldo final flujo principal E2E' })
+        }
+      }
+
       await advanceTo(status)
 
       if (status === 'Anticipo recibido') {
@@ -151,8 +176,9 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
 
       if (status === 'Pago completo') {
         const quote = await storedQuote()
-        expect(quote.paidAt).toBeTruthy()
-        await expect(orderCard().locator('.balance-paid')).toContainText('$0')
+        expect(quote.paidAt).toBeUndefined()
+        await expect(orderCard().locator('[data-payment-balance]')).toHaveText('$0.00')
+        await expect(orderCard().locator('.order-money span').nth(1).locator('b')).not.toHaveText('$0')
       }
     }
   })

@@ -21,7 +21,16 @@
     'Seguimiento al cliente',
   ]
 
-  const settledStatuses = new Set([
+  const depositRequiredStatuses = new Set([
+    'Boceto en proceso',
+    'Esperando aprobación del boceto',
+    'Boceto aprobado',
+    'Pintura en proceso',
+    'Obra terminada',
+    'Esperando saldo',
+  ])
+
+  const fullPaymentRequiredStatuses = new Set([
     'Pago completo',
     'Lista para entregar',
     'Entregada',
@@ -100,8 +109,16 @@
         outline: 3px solid rgba(227, 32, 161, .25);
         outline-offset: 2px;
       }
-      .order-money .balance-paid b {
-        color: #16834f;
+      .workflow-financial-warning {
+        margin: 10px 0 0;
+        padding: 11px 12px;
+        border: 1px solid #efc173;
+        border-radius: 12px;
+        color: #754700;
+        background: #fff6dd;
+        font-size: .78rem;
+        font-weight: 800;
+        line-height: 1.45;
       }
     `
     document.head.append(style)
@@ -131,14 +148,10 @@
     const index = quotes.findIndex((quote) => quote.id === quoteId)
     if (index < 0) return false
 
-    const now = new Date().toISOString()
-    const becomesPaid = settledStatuses.has(targetStatus)
-
     quotes[index] = {
       ...quotes[index],
       status: targetStatus,
-      updatedAt: now,
-      ...(becomesPaid ? { paidAt: quotes[index].paidAt || now } : {}),
+      updatedAt: new Date().toISOString(),
     }
     localStorage.setItem(QUOTES_KEY, JSON.stringify(quotes))
 
@@ -160,21 +173,90 @@
     } catch {}
   }
 
-  const patchPaymentDisplay = (card, currentStatus) => {
-    if (!card) return
-    const moneyItems = card.querySelectorAll('.order-money span')
-    const balanceItem = moneyItems[1]
-    const balanceValue = balanceItem?.querySelector('b')
-    if (!balanceItem || !balanceValue) return
+  const money = (minor) => new Intl.NumberFormat('es-MX', {
+    style: 'currency',
+    currency: 'MXN',
+  }).format(minor / 100)
 
-    if (settledStatuses.has(currentStatus)) {
-      balanceItem.classList.add('balance-paid')
-      balanceValue.textContent = '$0'
-      balanceItem.setAttribute('aria-label', 'Saldo pagado: cero pesos')
-    } else {
-      balanceItem.classList.remove('balance-paid')
-      balanceItem.removeAttribute('aria-label')
+  const financialRequirement = (status) => {
+    if (status === 'Anticipo recibido') return 'positive-payment'
+    if (depositRequiredStatuses.has(status)) return 'deposit-covered'
+    if (fullPaymentRequiredStatuses.has(status)) return 'paid-in-full'
+    return null
+  }
+
+  const financialSummary = (quote) => {
+    const loaded = window.AKPaymentStorage.createStore(window.localStorage).load()
+    if (loaded.status === 'corrupt' || loaded.status === 'incompatible') {
+      return { blocked: true, ledgerStatus: loaded.status, summary: null }
     }
+
+    const priceMinor = Math.max(0, Math.round((Number(quote?.price?.suggestedPrice) || 0) * 100))
+    const requiredDepositMinor = Math.min(
+      priceMinor,
+      Math.max(0, Math.round((Number(quote?.price?.deposit) || 0) * 100))
+    )
+    return {
+      blocked: false,
+      ledgerStatus: loaded.status,
+      summary: window.AKPayments.summarize(loaded.ledger, quote.id, { priceMinor, requiredDepositMinor }),
+    }
+  }
+
+  const validateFinancialTransition = (quote, targetStatus) => {
+    if (targetStatus === 'Cancelada') return { allowed: true, message: '' }
+    const requirement = financialRequirement(targetStatus)
+    if (!requirement) return { allowed: true, message: '' }
+
+    const financial = financialSummary(quote)
+    if (financial.blocked) {
+      return {
+        allowed: false,
+        message: `No se puede confirmar este avance porque el ledger de pagos está ${financial.ledgerStatus === 'corrupt' ? 'dañado' : 'en un esquema incompatible'}. Revisa los datos antes de continuar.`,
+      }
+    }
+
+    const summary = financial.summary
+    if (requirement === 'positive-payment' && summary.totalPaidMinor <= 0) {
+      return { allowed: false, message: 'Primero registra un pago para confirmar Anticipo recibido.' }
+    }
+    if (requirement === 'deposit-covered' && !summary.depositCovered) {
+      return {
+        allowed: false,
+        message: `Faltan ${money(summary.requiredDepositMinor - summary.totalPaidMinor)} para cubrir el anticipo antes de comenzar el boceto.`,
+      }
+    }
+    if (requirement === 'paid-in-full' && (!summary.paidInFull || summary.balanceMinor !== 0)) {
+      return {
+        allowed: false,
+        message: `Faltan ${money(summary.balanceMinor)} para marcar este pedido como Pago completo.`,
+      }
+    }
+    return { allowed: true, message: '' }
+  }
+
+  const patchFinancialWarning = (card, quote, currentStatus) => {
+    if (!card) return
+    const requirement = financialRequirement(currentStatus)
+    const validation = requirement
+      ? validateFinancialTransition(quote, currentStatus)
+      : { allowed: true, message: '' }
+    let warning = card.querySelector('.workflow-financial-warning')
+
+    if (validation.allowed) {
+      warning?.remove()
+      return
+    }
+    if (!warning) {
+      warning = document.createElement('p')
+      warning.className = 'workflow-financial-warning'
+      warning.setAttribute('role', 'alert')
+      const payments = card.querySelector('.order-payments')
+      if (payments) payments.insertAdjacentElement('beforebegin', warning)
+      else card.append(warning)
+    }
+    const message = `Atención financiera: ${validation.message}`
+    if (warning.textContent !== message) warning.textContent = message
   }
 
   const ensureConfirmButton = (select) => {
@@ -196,6 +278,18 @@
 
         button.disabled = true
         button.textContent = 'Guardando avance…'
+
+        const quote = readQuotes().find((item) => item.id === quoteId)
+        const validation = quote
+          ? validateFinancialTransition(quote, targetStatus)
+          : { allowed: false, message: 'No fue posible encontrar este pedido.' }
+        if (!validation.allowed) {
+          button.disabled = false
+          updateButtonText(button, select)
+          patchFinancialWarning(card, quote, aliases[quote?.status] || quote?.status)
+          window.alert(validation.message)
+          return
+        }
 
         if (!saveStatus(quoteId, targetStatus)) {
           button.disabled = false
@@ -233,7 +327,7 @@
       const pill = card?.querySelector('.status-pill')
       if (pill && pill.textContent !== currentStatus) pill.textContent = currentStatus
 
-      patchPaymentDisplay(card, currentStatus)
+      patchFinancialWarning(card, quote, currentStatus)
 
       if (currentStatus === 'Cancelada') {
         const key = 'cancelada'

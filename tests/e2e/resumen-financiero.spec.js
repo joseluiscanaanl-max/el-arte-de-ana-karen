@@ -118,16 +118,17 @@ test('el resumen financiero usa exclusivamente pagos, reversos y saldos del ledg
   })
 
   await test.step('cambiar a Anticipo recibido sin pago no altera ninguna cifra', async () => {
-    await openOrders()
-    const select = mainOrder().locator('select[data-status-id]')
-    await select.selectOption({ label: 'Anticipo recibido' })
-    const confirmation = mainOrder().locator('.workflow-confirm-button')
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded' }),
-      confirmation.click(),
-    ])
-    await openHome()
+    const ledgerBefore = await page.evaluate((key) => localStorage.getItem(key), LEDGER_KEY)
+    await page.evaluate((quoteId) => {
+      const quotes = JSON.parse(localStorage.getItem('ak-quotes-v1'))
+      const quote = quotes.find((item) => item.id === quoteId)
+      quote.status = 'Anticipo recibido'
+      quote.updatedAt = new Date().toISOString()
+      localStorage.setItem('ak-quotes-v1', JSON.stringify(quotes))
+    }, QUOTE_MAIN)
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await expectWorkshop({ covered: '$650.00', paid: '$1,000.00', pending: '$1,400.00' })
+    await expect.poll(async () => page.evaluate((key) => localStorage.getItem(key), LEDGER_KEY)).toBe(ledgerBefore)
   })
 
   await test.step('primer pago real actualiza pagado, anticipo cubierto y pendiente', async () => {
