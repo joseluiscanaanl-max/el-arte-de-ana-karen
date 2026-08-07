@@ -5,6 +5,10 @@
   "description": "PWA móvil para cotizaciones, clientes, pedidos y promoción artística.",
   "scripts": {
     "start": "python3 -m http.server 4173",
-    "check": "node --check app.js"
+    "check": "node --check app.js",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }
