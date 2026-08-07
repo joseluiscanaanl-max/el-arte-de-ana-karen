@@ -4,30 +4,16 @@
   const SECTION_ID = 'ak-joce-acrylic-preview'
   const STYLE_ID = 'ak-joce-acrylic-preview-style'
   const PRESETS = [
-    {
-      key: 'simple',
-      label: 'Fondo sencillo',
-      background: 'Sencillo',
-      description: 'Simple, limpio y con muy pocos detalles en el fondo.',
-    },
-    {
-      key: 'medium',
-      label: 'Fondo medio',
-      background: 'Detallado',
-      description: 'Fondo equilibrado, suave y todavía sencillo.',
-    },
-    {
-      key: 'detailed',
-      label: 'Fondo detallado',
-      background: 'Muy detallado',
-      description: 'Conserva más del entorno sin perder el estilo acrílico sencillo.',
-    },
+    { key:'simple', label:'Fondo sencillo', background:'Sencillo', description:'Simple, limpio y con muy pocos detalles en el fondo.' },
+    { key:'medium', label:'Fondo medio', background:'Detallado', description:'Fondo equilibrado, suave y todavía sencillo.' },
+    { key:'detailed', label:'Fondo detallado', background:'Muy detallado', description:'Conserva más del entorno sin perder el estilo acrílico sencillo.' },
   ]
 
   let selectedKey = 'simple'
   let lastSignature = ''
   let timer = null
   let generationId = 0
+  let activeGeneration = null
 
   const injectStyles = () => {
     if (document.getElementById(STYLE_ID)) return
@@ -64,13 +50,6 @@
     if (window.JOCE_AI_ENDPOINT) return String(window.JOCE_AI_ENDPOINT).replace(/\/$/, '')
     if (location.hostname.endsWith('.vercel.app')) return '/api/joce-acrylic'
     return ''
-  }
-
-  const presetFromBackground = (value) => {
-    const normalized = String(value || '').toLowerCase()
-    if (normalized.includes('muy')) return 'detailed'
-    if (normalized.includes('detall')) return 'medium'
-    return 'simple'
   }
 
   const selectedPreset = () => PRESETS.find((preset) => preset.key === selectedKey) || PRESETS[0]
@@ -111,7 +90,7 @@
   }
 
   const resizePhoto = (image) => {
-    const maxSide = 1536
+    const maxSide = 1024
     const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
     const width = Math.max(1, Math.round(image.naturalWidth * ratio))
     const height = Math.max(1, Math.round(image.naturalHeight * ratio))
@@ -122,15 +101,10 @@
     context.imageSmoothingEnabled = true
     context.imageSmoothingQuality = 'high'
     context.drawImage(image, 0, 0, width, height)
-    return {
-      dataUrl: canvas.toDataURL('image/jpeg', .88),
-      orientation: height > width ? 'portrait' : 'landscape',
-      width,
-      height,
-    }
+    return { dataUrl:canvas.toDataURL('image/jpeg', .86), orientation:height > width ? 'portrait' : 'landscape', width, height }
   }
 
-  const drawPlaceholder = (canvas, image, text = 'Preparando vista con IA…') => {
+  const drawPlaceholder = (canvas, image, text) => {
     const maxSide = 720
     const ratio = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
     const width = Math.max(1, Math.round(image.naturalWidth * ratio))
@@ -141,7 +115,7 @@
     const context = canvas.getContext('2d')
     context.drawImage(image, 0, 0, width, height)
     context.save()
-    context.fillStyle = 'rgba(255,248,253,.78)'
+    context.fillStyle = 'rgba(255,248,253,.82)'
     context.fillRect(0, 0, width, height)
     context.fillStyle = '#6b3974'
     context.font = `700 ${Math.max(15, Math.round(width * .028))}px system-ui, sans-serif`
@@ -167,33 +141,31 @@
     image.src = dataUrl
   })
 
-  const generateVariant = async ({ section, photo, prepared, preset, id }) => {
+  const generateVariant = async (state, preset) => {
+    if (!state || state.id !== generationId) return
+    const { section, photo, prepared, id } = state
     const card = section.querySelector(`[data-ak-acrylic-key="${preset.key}"]`)
     const canvas = section.querySelector(`[data-ak-acrylic-canvas="${preset.key}"]`)
     const status = card?.querySelector('.ak-acrylic-card__status')
-    if (!card || !canvas) return
+    if (!card || !canvas || canvas.dataset.aiReady || card.dataset.state === 'loading') return
 
     card.dataset.state = 'loading'
     if (status) status.textContent = 'JOCE está pintando esta opción…'
-    drawPlaceholder(canvas, photo)
+    drawPlaceholder(canvas, photo, 'Pintando con IA…')
 
     const target = endpoint()
     if (!target) {
       card.dataset.state = 'error'
-      if (status) status.textContent = 'La IA estará disponible en la versión segura de Vercel.'
-      drawPlaceholder(canvas, photo, 'IA pendiente de conexión')
+      if (status) status.textContent = 'Abre la versión de Vercel para usar la IA.'
+      drawPlaceholder(canvas, photo, 'Disponible en Vercel')
       return
     }
 
     try {
       const response = await fetch(target, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          imageDataUrl: prepared.dataUrl,
-          orientation: prepared.orientation,
-          variant: preset.key,
-        }),
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body:JSON.stringify({ imageDataUrl:prepared.dataUrl, orientation:prepared.orientation, variant:preset.key }),
       })
       const payload = await response.json().catch(() => ({}))
       if (!response.ok || !payload.dataUrl) throw new Error(payload.message || 'No fue posible generar la imagen.')
@@ -206,21 +178,19 @@
       if (id !== generationId) return
       card.dataset.state = 'error'
       if (status) status.textContent = error?.message || 'No fue posible generar esta opción.'
-      drawPlaceholder(canvas, photo, 'No se pudo generar')
+      drawPlaceholder(canvas, photo, 'Toca para reintentar')
     }
   }
 
-  const generateAll = async (section, photo) => {
-    const id = ++generationId
-    const prepared = resizePhoto(photo)
-    await Promise.allSettled(PRESETS.map((preset) => generateVariant({ section, photo, prepared, preset, id })))
+  const generatePreset = (key) => {
+    const preset = PRESETS.find((item) => item.key === key)
+    if (preset && activeGeneration) generateVariant(activeGeneration, preset)
   }
 
   const renderSection = (image) => {
     injectStyles()
     const result = document.getElementById('ak-analysis-result')
-    const form = document.getElementById('quote-form')
-    if (!result || !form) return
+    if (!result) return
 
     let section = document.getElementById(SECTION_ID)
     if (!section) {
@@ -234,20 +204,20 @@
       else result.appendChild(section)
     }
 
-    selectedKey = presetFromBackground(form.elements?.background?.value)
+    selectedKey = 'simple'
     section.innerHTML = `
       <div class="ak-acrylic-preview__head">
         <h4>Vista previa del cuadro con IA</h4>
-        <p>JOCE conserva la fotografía y propone el estilo fijo aprobado: acrílico sencillo sobre lienzo.</p>
+        <p>JOCE conserva la fotografía y aplica el estilo fijo aprobado: acrílico sencillo sobre lienzo.</p>
       </div>
       <div class="ak-acrylic-preview__grid">
         ${PRESETS.map((preset) => `
-          <button class="ak-acrylic-card" type="button" data-ak-acrylic-key="${preset.key}" aria-pressed="false" data-state="loading">
+          <button class="ak-acrylic-card" type="button" data-ak-acrylic-key="${preset.key}" aria-pressed="false" data-state="idle">
             <span class="ak-acrylic-card__check">✓</span>
             <canvas data-ak-acrylic-canvas="${preset.key}" aria-label="Simulación ${preset.label}"></canvas>
             <strong class="ak-acrylic-card__label">${preset.label}</strong>
             <span class="ak-acrylic-card__description">${preset.description}</span>
-            <span class="ak-acrylic-card__status">Preparando…</span>
+            <span class="ak-acrylic-card__status">${preset.key === 'simple' ? 'Preparando…' : 'Toca para generar esta vista.'}</span>
           </button>
         `).join('')}
       </div>
@@ -255,22 +225,25 @@
         <span data-ak-acrylic-selection></span>
         <button class="ak-acrylic-preview__use" type="button" data-ak-use-acrylic disabled>Usar esta vista</button>
       </div>
-      <p class="ak-acrylic-preview__note">Vista orientativa generada con IA. La obra final será pintada a mano por Ana Karen y conservará su interpretación artística.</p>
+      <p class="ak-acrylic-preview__note">La opción sencilla se genera primero para ahorrar la cuota gratuita. Las otras vistas se generan únicamente cuando las solicitas. La obra final será pintada a mano por Ana Karen.</p>
     `
 
     PRESETS.forEach((preset) => {
       const canvas = section.querySelector(`[data-ak-acrylic-canvas="${preset.key}"]`)
-      if (canvas) drawPlaceholder(canvas, image)
+      if (canvas) drawPlaceholder(canvas, image, preset.key === 'simple' ? 'Preparando vista…' : 'Toca para generar')
     })
+
+    const id = ++generationId
+    activeGeneration = { id, section, photo:image, prepared:resizePhoto(image) }
     updateSelection()
-    generateAll(section, image)
+    generatePreset('simple')
   }
 
   const ensure = () => {
     const result = document.getElementById('ak-analysis-result')
     const image = document.getElementById('ak-photo-preview')
     if (!result?.classList.contains('is-visible') || !image?.naturalWidth || !image?.naturalHeight) return
-    const signature = `${image.currentSrc || image.src}|${image.naturalWidth}x${image.naturalHeight}|ai-v1`
+    const signature = `${image.currentSrc || image.src}|${image.naturalWidth}x${image.naturalHeight}|hf-free-v2`
     if (signature === lastSignature && document.getElementById(SECTION_ID)) return
     lastSignature = signature
     renderSection(image)
@@ -286,6 +259,8 @@
     if (card) {
       selectedKey = card.dataset.akAcrylicKey || 'simple'
       updateSelection()
+      const canvas = card.querySelector('canvas')
+      if (!canvas?.dataset.aiReady && card.dataset.state !== 'loading') generatePreset(selectedKey)
       return
     }
     if (event.target.closest?.('[data-ak-use-acrylic]')) applySelected()
@@ -294,6 +269,7 @@
   document.addEventListener('change', (event) => {
     if (event.target?.id === 'ak-reference-photo') {
       generationId += 1
+      activeGeneration = null
       lastSignature = ''
       schedule(260)
     }
