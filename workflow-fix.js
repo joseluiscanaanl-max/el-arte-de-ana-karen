@@ -2,6 +2,7 @@
   'use strict'
 
   const QUOTES_KEY = 'ak-quotes-v1'
+  const RETURN_VIEW_KEY = 'ak-workflow-return-view'
   const workflow = [
     'Borrador',
     'Cotización enviada',
@@ -145,6 +146,20 @@
     return verification?.status === targetStatus
   }
 
+  const rememberOrdersView = () => {
+    try {
+      sessionStorage.setItem(RETURN_VIEW_KEY, 'pedidos')
+    } catch {}
+  }
+
+  const restoreOrdersView = () => {
+    try {
+      if (sessionStorage.getItem(RETURN_VIEW_KEY) !== 'pedidos') return
+      sessionStorage.removeItem(RETURN_VIEW_KEY)
+      document.querySelector('[data-view="pedidos"]')?.click()
+    } catch {}
+  }
+
   const patchPaymentDisplay = (card, currentStatus) => {
     if (!card) return
     const moneyItems = card.querySelectorAll('.order-money span')
@@ -189,6 +204,7 @@
           return
         }
 
+        rememberOrdersView()
         window.setTimeout(() => window.location.reload(), 80)
       })
     }
@@ -274,6 +290,7 @@
   }
 
   const start = () => {
+    restoreOrdersView()
     applyFixes()
     const app = document.getElementById('app')
     if (!app) return

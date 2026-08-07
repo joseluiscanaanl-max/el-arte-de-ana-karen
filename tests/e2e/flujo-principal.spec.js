@@ -64,7 +64,8 @@ test('flujo principal de cliente a seguimiento', async ({ page }) => {
       confirmation.click(),
     ])
 
-    await openOrders()
+    await expect(page.getByRole('heading', { name: 'Mis encargos' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Pedidos/ })).toHaveClass(/active/)
     await expect(orderCard().locator('.status-pill')).toHaveText(status)
     await expect.poll(async () => (await storedQuote())?.status).toBe(status)
   }
