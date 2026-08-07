@@ -8,6 +8,19 @@
     promotions: 'ak-promotions-v1',
   }
 
+  const BACKUP_FORMAT = 'el-arte-de-ana-karen-backup'
+  const BACKUP_VERSION = 2
+  const BACKUP_KEYS = [
+    'ak-settings-v1',
+    'ak-clients-v1',
+    'ak-quotes-v1',
+    'ak-promotions-v1',
+    'ak-followups-v1',
+    'ak-payments-ledger-v1',
+  ]
+  const storageIssues = new Map()
+  let pendingRestore = null
+
   const defaultSettings = {
     hourlyRate: 150,
     marginPercent: 35,
@@ -19,20 +32,103 @@
   const today = () => new Date().toISOString().slice(0, 10)
   const futureDate = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
 
+  const isPlainObject = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  const isCompatible = (key, value) => {
+    if (key === KEYS.settings) return isPlainObject(value)
+    if ([KEYS.clients, KEYS.quotes, KEYS.promotions].includes(key)) return Array.isArray(value)
+    return true
+  }
+
   const load = (key, fallback) => {
+    const raw = localStorage.getItem(key)
+    if (raw === null) return fallback
     try {
-      const raw = localStorage.getItem(key)
-      return raw ? JSON.parse(raw) : fallback
-    } catch {
-      return fallback
+      const parsed = JSON.parse(raw)
+      if (!isCompatible(key, parsed)) throw new TypeError('estructura incompatible')
+      return parsed
+    } catch (error) {
+      storageIssues.set(key, { raw, error: error.message })
+      return Array.isArray(fallback) ? [] : { ...fallback }
     }
   }
 
   const save = () => {
+    if (storageIssues.size) {
+      toast('Hay datos guardados que necesitan revisión. Restaura un respaldo válido antes de guardar cambios.')
+      return false
+    }
     localStorage.setItem(KEYS.settings, JSON.stringify(state.settings))
     localStorage.setItem(KEYS.clients, JSON.stringify(state.clients))
     localStorage.setItem(KEYS.quotes, JSON.stringify(state.quotes))
     localStorage.setItem(KEYS.promotions, JSON.stringify(state.promotions))
+    return true
+  }
+
+  const createBackupV2 = () => ({
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    storage: Object.fromEntries(BACKUP_KEYS.map((key) => [key, localStorage.getItem(key)])),
+  })
+
+  const downloadBackup = (backup, prefix = 'respaldo-arte-ana-karen') => {
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${prefix}-${today()}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const inspectStoredValue = (key, raw) => {
+    if (raw === null) return { valid: true, description: 'ausente' }
+    try {
+      const parsed = JSON.parse(raw)
+      let valid = true
+      if (key === 'ak-settings-v1' || key === 'ak-followups-v1') valid = isPlainObject(parsed)
+      if (['ak-clients-v1', 'ak-quotes-v1', 'ak-promotions-v1'].includes(key)) valid = Array.isArray(parsed)
+      if (key === 'ak-payments-ledger-v1') valid = Boolean(window.AKPaymentStorage?.validateLedger(parsed))
+      return { valid, description: valid ? 'válida' : 'dañada o incompatible' }
+    } catch {
+      return { valid: false, description: 'dañada o incompatible' }
+    }
+  }
+
+  const validateBackupV2 = (candidate) => {
+    if (!isPlainObject(candidate) || candidate.format !== BACKUP_FORMAT || candidate.version !== BACKUP_VERSION) return null
+    if (typeof candidate.exportedAt !== 'string' || !Number.isFinite(Date.parse(candidate.exportedAt))) return null
+    if (!isPlainObject(candidate.storage)) return null
+    const keys = Object.keys(candidate.storage)
+    if (keys.length !== BACKUP_KEYS.length || keys.some((key) => !BACKUP_KEYS.includes(key))) return null
+    if (BACKUP_KEYS.some((key) => !Object.prototype.hasOwnProperty.call(candidate.storage, key))) return null
+    if (BACKUP_KEYS.some((key) => candidate.storage[key] !== null && typeof candidate.storage[key] !== 'string')) return null
+    return {
+      backup: candidate,
+      inspection: Object.fromEntries(BACKUP_KEYS.map((key) => [key, inspectStoredValue(key, candidate.storage[key])])),
+    }
+  }
+
+  const restoreBackup = (backup) => {
+    const previous = Object.fromEntries(BACKUP_KEYS.map((key) => [key, localStorage.getItem(key)]))
+    downloadBackup(createBackupV2(), 'respaldo-antes-de-restaurar')
+    try {
+      BACKUP_KEYS.forEach((key) => {
+        const value = backup.storage[key]
+        if (value === null) localStorage.removeItem(key)
+        else localStorage.setItem(key, value)
+      })
+      return true
+    } catch {
+      try {
+        BACKUP_KEYS.forEach((key) => {
+          const value = previous[key]
+          if (value === null) localStorage.removeItem(key)
+          else localStorage.setItem(key, value)
+        })
+      } catch {}
+      return false
+    }
   }
 
   const esc = (value = '') => String(value)
@@ -106,7 +202,7 @@
 
   state.draft = newDraft(state.clients[0]?.id || '')
 
-  if (state.quotes.length === 0) {
+  if (state.quotes.length === 0 && storageIssues.size === 0) {
     const example = {
       ...newDraft('client-laura'),
       title: 'Retrato familiar al atardecer',
@@ -243,6 +339,7 @@
         <button class="icon-button" data-view="ajustes" aria-label="Ajustes">⚙</button>
       </header>
       ${state.notice ? `<div class="toast" role="status">${esc(state.notice)}</div>` : ''}
+      ${storageIssues.size ? `<div class="info-box" role="alert"><strong>Datos guardados pendientes de revisión</strong><p>No se guardarán cambios para evitar sobrescribir información existente. Restaura un respaldo válido desde Ajustes. Claves afectadas: ${[...storageIssues.keys()].map(esc).join(', ')}.</p></div>` : ''}
       <main class="main-content">${content}</main>
       <nav class="bottom-nav">
         ${navButton('inicio', '⌂', 'Inicio')}
@@ -453,7 +550,20 @@
         ${field('Gastos indirectos (%)', 'indirectPercent', state.settings.indirectPercent, 'number', 'min="0" max="100"')}
         <button class="primary-button" type="submit">Guardar preferencias</button>
       </form>
-      <div class="form-card compact-form"><div><p class="eyebrow">SEGURIDAD</p><h3>Respaldo de información</h3><p>Descarga clientes, cotizaciones y publicaciones en un archivo.</p></div><button class="secondary-button" data-action="backup">Descargar respaldo</button></div>
+      <div class="form-card compact-form">
+        <div><p class="eyebrow">SEGURIDAD</p><h3>Respaldo de información</h3><p>Descarga o restaura clientes, pedidos, promociones, seguimientos y pagos en un archivo V2.</p></div>
+        <div class="action-row"><button class="secondary-button" data-action="backup">Descargar respaldo</button><button class="secondary-button" data-action="choose-restore">Restaurar respaldo</button></div>
+        <input id="restore-backup-file" type="file" accept="application/json,.json" hidden>
+        <p data-restore-status role="status"></p>
+        ${pendingRestore ? `
+          <div class="info-box" data-restore-preview>
+            <strong>Revisa antes de restaurar</strong>
+            <p>Se reemplazarán estas seis claves:</p>
+            <ul>${BACKUP_KEYS.map((key) => `<li><code>${esc(key)}</code>: ${pendingRestore.inspection[key].valid ? esc(pendingRestore.inspection[key].description) : '<strong>dañada o incompatible; se conservará literalmente</strong>'}</li>`).join('')}</ul>
+            <label class="switch-row"><div><strong>Confirmo la restauración</strong><small>Se descargará primero una copia de seguridad del estado actual.</small></div><input type="checkbox" data-restore-confirm></label>
+            <button class="primary-button" type="button" data-action="apply-restore" disabled>Restaurar las seis claves</button>
+          </div>` : ''}
+      </div>
       <div class="info-box"><strong>Privacidad</strong><p>Esta primera versión guarda la información únicamente en este dispositivo. No envía datos a servidores externos.</p></div>
     </section>`
 
@@ -682,12 +792,42 @@
       save(); toast('Preferencias guardadas.')
     })
     document.querySelector('[data-action="backup"]')?.addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...state }, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url; a.download = `respaldo-arte-ana-karen-${today()}.json`; a.click()
-      URL.revokeObjectURL(url)
+      downloadBackup(createBackupV2())
       toast('Respaldo descargado.')
+    })
+    const restoreInput = document.getElementById('restore-backup-file')
+    document.querySelector('[data-action="choose-restore"]')?.addEventListener('click', () => restoreInput?.click())
+    restoreInput?.addEventListener('change', async () => {
+      const status = document.querySelector('[data-restore-status]')
+      const file = restoreInput.files?.[0]
+      pendingRestore = null
+      if (!file) return
+      try {
+        const candidate = JSON.parse(await file.text())
+        const validated = validateBackupV2(candidate)
+        if (!validated) throw new TypeError('formato inválido')
+        pendingRestore = validated
+        render()
+      } catch {
+        if (status) status.textContent = 'Este respaldo no es válido. No se cambió ningún dato.'
+        restoreInput.value = ''
+      }
+    })
+    const restoreConfirm = document.querySelector('[data-restore-confirm]')
+    const restoreButton = document.querySelector('[data-action="apply-restore"]')
+    restoreConfirm?.addEventListener('change', () => {
+      if (restoreButton) restoreButton.disabled = !restoreConfirm.checked
+    })
+    restoreButton?.addEventListener('click', () => {
+      if (!pendingRestore || !restoreConfirm?.checked) return
+      const restored = restoreBackup(pendingRestore.backup)
+      const status = document.querySelector('[data-restore-status]')
+      if (!restored) {
+        if (status) status.textContent = 'No se pudo restaurar. Se recuperó el estado anterior.'
+        return
+      }
+      if (status) status.textContent = 'Respaldo restaurado correctamente.'
+      window.setTimeout(() => window.location.reload(), 250)
     })
   }
 

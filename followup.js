@@ -19,6 +19,18 @@
   }
 
   const store = (key, value) => localStorage.setItem(key, JSON.stringify(value))
+  const readFollowups = () => {
+    const raw = localStorage.getItem(KEYS.followups)
+    if (raw === null) return { status: 'empty', records: {}, raw: null }
+    try {
+      const records = JSON.parse(raw)
+      if (!records || typeof records !== 'object' || Array.isArray(records)) throw new TypeError('estructura incompatible')
+      return { status: 'valid', records, raw }
+    } catch {
+      return { status: 'invalid', records: null, raw }
+    }
+  }
+  const followupWarning = 'Los seguimientos guardados necesitan revisión. No se cambió ningún dato.'
   const today = () => new Date().toISOString().slice(0, 10)
   const futureDate = (days = 7) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
 
@@ -37,12 +49,17 @@
   }
 
   const getRecord = (quoteId) => {
-    const all = load(KEYS.followups, {})
-    return all[quoteId] || {}
+    const current = readFollowups()
+    return current.records?.[quoteId] || {}
   }
 
   const saveRecord = (quoteId, patch) => {
-    const all = load(KEYS.followups, {})
+    const current = readFollowups()
+    if (current.status === 'invalid') {
+      window.alert(followupWarning)
+      return null
+    }
+    const all = current.records
     all[quoteId] = {
       ...(all[quoteId] || {}),
       ...patch,
@@ -284,6 +301,14 @@
       <p class="ak-followup-saved" data-followup-saved></p>
     `
 
+    if (readFollowups().status === 'invalid') {
+      const warning = document.createElement('p')
+      warning.className = 'ak-followup-status'
+      warning.setAttribute('role', 'alert')
+      warning.textContent = followupWarning
+      panel.prepend(warning)
+    }
+
     const actions = card.querySelector('.action-row')
     if (actions) actions.insertAdjacentElement('beforebegin', panel)
     else card.append(panel)
@@ -310,7 +335,9 @@
     panel.querySelectorAll('[data-followup-check]').forEach((input) => {
       input.checked = Boolean(record[input.dataset.followupCheck])
       input.addEventListener('change', () => {
-        saveRecord(quote.id, { [input.dataset.followupCheck]: input.checked })
+        if (!saveRecord(quote.id, { [input.dataset.followupCheck]: input.checked })) {
+          input.checked = Boolean(record[input.dataset.followupCheck])
+        }
       })
     })
 
@@ -322,6 +349,10 @@
     panel.querySelector('[data-followup-whatsapp]').addEventListener('click', () => {
       const message = messageArea.value.trim()
       if (!message) return
+      if (readFollowups().status === 'invalid') {
+        window.alert(followupWarning)
+        return
+      }
       openWhatsApp(client, message)
       saveRecord(quote.id, {
         lastTemplate: templateSelect.value,
@@ -350,7 +381,10 @@
         savedText.textContent = 'Selecciona una fecha.'
         return
       }
-      saveRecord(quote.id, { reminderDate })
+      if (!saveRecord(quote.id, { reminderDate })) {
+        savedText.textContent = followupWarning
+        return
+      }
       updateClientNextAction(
         quote.clientId,
         `Dar seguimiento a “${quote.title}” el ${formatDate(reminderDate)}`

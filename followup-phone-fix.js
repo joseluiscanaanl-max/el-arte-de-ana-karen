@@ -17,6 +17,18 @@
   }
 
   const store = (key, value) => localStorage.setItem(key, JSON.stringify(value))
+  const FOLLOWUP_WARNING = 'Los seguimientos guardados necesitan revisión. No se cambió ningún dato.'
+  const readFollowups = () => {
+    const raw = localStorage.getItem(KEYS.followups)
+    if (raw === null) return { status: 'empty', records: {}, raw: null }
+    try {
+      const records = JSON.parse(raw)
+      if (!records || typeof records !== 'object' || Array.isArray(records)) throw new TypeError('estructura incompatible')
+      return { status: 'valid', records, raw }
+    } catch {
+      return { status: 'invalid', records: null, raw }
+    }
+  }
   const firstName = (name = '') => name.trim().split(/\s+/)[0] || 'cliente'
 
   const normalizePhone = (value = '') => {
@@ -58,7 +70,9 @@
   }
 
   const saveOpenedMessage = (quoteId, message) => {
-    const records = load(KEYS.followups, {})
+    const current = readFollowups()
+    if (current.status === 'invalid') return false
+    const records = current.records
     records[quoteId] = {
       ...(records[quoteId] || {}),
       lastMessage: message,
@@ -66,6 +80,7 @@
       updatedAt: new Date().toISOString(),
     }
     store(KEYS.followups, records)
+    return true
   }
 
   const openDirectChat = (phone, message) => {
@@ -274,6 +289,11 @@
         return
       }
 
+      if (readFollowups().status === 'invalid') {
+        setStatus(panel, FOLLOWUP_WARNING)
+        return
+      }
+
       openDirectChat(phone, message)
       saveOpenedMessage(context.quote.id, message)
       setStatus(panel, `WhatsApp abierto con ${firstName(context.client?.name)}. Si WhatsApp rechaza el número, regresa y pulsa “Corregir número”.`)
@@ -296,6 +316,12 @@
     if (!context || !phone) {
       if (error) error.textContent = 'Escribe el número real con 10 dígitos.'
       input?.focus()
+      return
+    }
+
+    if (readFollowups().status === 'invalid') {
+      if (error) error.textContent = FOLLOWUP_WARNING
+      setStatus(panel, FOLLOWUP_WARNING)
       return
     }
 

@@ -1,5 +1,31 @@
-const CACHE_NAME = 'ana-karen-v23';
-const APP_SHELL = ['./', './index.html', './styles.css', './layout-fix.css', './joce-layout-safe.css?v=22', './pricing.js', './app.js', './workflow-fix.js', './followup.js', './followup-phone-fix.js', './home-finance-summary.js', './joce-photo-analysis.js?v=20', './joce-canvas-sizes-stable.js?v=23', './manifest.webmanifest', './icon.svg'];
+const CACHE_PREFIX = 'ana-karen-';
+const CACHE_NAME = 'ana-karen-v24';
+const APP_SHELL = [
+  './',
+  './index.html',
+  './manifest.webmanifest',
+  './icon.svg',
+  './styles.css',
+  './layout-fix.css',
+  './joce-layout-safe.css?v=22',
+  './payments-ui.css',
+  './pricing.js',
+  './payments.js',
+  './payments-storage.js',
+  './app.js',
+  './workflow-fix.js',
+  './payments-ui.js',
+  './followup.js',
+  './followup-phone-fix.js',
+  './home-finance-summary.js',
+  './joce-photo-analysis.js?v=20',
+  './joce-canvas-fit.js?v=24',
+  './joce-acrylic-preview.js?v=42',
+  './joce-acrylic-share.js?v=26',
+  './joce-acrylic-estimates.js?v=27',
+  './joce-canvas-catalog.js?v=28',
+  './joce-approved-fixed-layout.js?v=31',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -8,7 +34,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME).map((key) => caches.delete(key))
+    ))
   );
   self.clients.claim();
 });
@@ -21,7 +49,7 @@ self.addEventListener('fetch', (event) => {
       .then((response) => {
         if (response.ok && new URL(event.request.url).origin === self.location.origin) {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)));
         }
         return response;
       })
