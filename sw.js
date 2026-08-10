@@ -15,6 +15,7 @@ const APP_SHELL = [
   './app.js',
   './workflow-fix.js',
   './payments-ui.js',
+  './order-integrity.js',
   './followup.js',
   './followup-phone-fix.js',
   './home-finance-summary.js',
