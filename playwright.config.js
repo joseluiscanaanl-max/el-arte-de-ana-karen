@@ -18,6 +18,7 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'chromium-mobile',
+      testIgnore: ['**/layout-desktop.spec.js'],
       use: { ...devices['Pixel 5'] },
     },
     {
@@ -25,8 +26,17 @@ module.exports = defineConfig({
       testIgnore: [
         '**/offline.spec.js',
         '**/respaldo-restauracion.spec.js',
+        '**/layout-desktop.spec.js',
       ],
       use: { ...devices['iPhone 13'] },
+    },
+    {
+      name: 'chromium-desktop',
+      testMatch: '**/layout-desktop.spec.js',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1365, height: 768 },
+      },
     },
   ],
   globalSetup: require.resolve('./tests/e2e/server.cjs'),
