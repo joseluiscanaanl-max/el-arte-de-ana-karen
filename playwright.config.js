@@ -20,6 +20,10 @@ module.exports = defineConfig({
       name: 'chromium-mobile',
       use: { ...devices['Pixel 5'] },
     },
+    {
+      name: 'webkit-iphone',
+      use: { ...devices['iPhone 13'] },
+    },
   ],
   globalSetup: require.resolve('./tests/e2e/server.cjs'),
 })
