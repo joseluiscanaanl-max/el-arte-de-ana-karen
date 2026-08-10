@@ -36,8 +36,11 @@ jobs:
       - name: Instalar Chromium para Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Validar sintaxis
+      - name: Validar sintaxis de todo JavaScript
         run: npm run check
+
+      - name: Validar integridad de release
+        run: npm run test:release
 
       - name: Probar pricing
         run: node tests/pricing.test.js
