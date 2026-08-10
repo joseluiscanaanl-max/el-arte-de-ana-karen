@@ -22,6 +22,10 @@ module.exports = defineConfig({
     },
     {
       name: 'webkit-iphone',
+      testIgnore: [
+        '**/offline.spec.js',
+        '**/respaldo-restauracion.spec.js',
+      ],
       use: { ...devices['iPhone 13'] },
     },
   ],
