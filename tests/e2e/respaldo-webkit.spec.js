@@ -18,7 +18,11 @@ const validLedger = () => JSON.stringify({
 const storageA = () => ({
   'ak-settings-v1': JSON.stringify({ hourlyRate: 150, marginPercent: 35, depositPercent: 50, indirectPercent: 10 }),
   'ak-clients-v1': JSON.stringify([{ id: 'webkit-client-a', name: 'Cliente WebKit A' }]),
-  'ak-quotes-v1': '[]',
+  'ak-quotes-v1': JSON.stringify([{
+    id: 'webkit-quote-a', clientId: 'webkit-client-a', title: 'Pedido WebKit A', width: 20, height: 30,
+    technique: 'Acrílico', status: 'Borrador', createdAt: '2026-08-09T10:00:00.000Z', updatedAt: '2026-08-09T10:00:00.000Z',
+    price: { suggestedPrice: 900, deposit: 450, balance: 450, profit: 250 },
+  }]),
   'ak-promotions-v1': '[]',
   'ak-followups-v1': '{}',
   'ak-payments-ledger-v1': validLedger(),
