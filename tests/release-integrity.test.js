@@ -54,9 +54,17 @@ assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v24['"];?/, 'La caché espera
 assert.match(sw, /event\.waitUntil\([\s\S]*cache\.put\(/, 'Las escrituras dinámicas de caché deben quedar ligadas a event.waitUntil')
 
 assert.equal(manifest.name, 'El Arte de Ana Karen')
+assert.equal(manifest.id, './', 'El manifest debe tener un id estable para la PWA')
+assert.equal(manifest.start_url, './')
+assert.equal(manifest.scope, './', 'El scope de la PWA debe quedar limitado a la aplicación')
 assert.equal(manifest.display, 'standalone')
 assert.equal(manifest.lang, 'es-MX')
 assert.ok(Array.isArray(manifest.icons) && manifest.icons.length > 0, 'manifest.webmanifest debe declarar iconos')
+assert.ok(manifest.icons.some((icon) => String(icon.purpose || '').split(/\s+/).includes('any')), 'El manifest debe ofrecer al menos un icono usable como any')
+
+assert.match(index, /name="apple-mobile-web-app-capable"\s+content="yes"/, 'index.html debe conservar compatibilidad de modo web app en iPhone/iPad')
+assert.match(index, /name="apple-mobile-web-app-title"\s+content="El Arte de Ana Karen"/, 'index.html debe declarar el nombre de la app para iPhone/iPad')
+assert.match(index, /viewport-fit=cover/, 'La interfaz debe respetar áreas seguras de pantallas móviles')
 
 assert.match(publishWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main\b/m, 'La publicación automática debe dispararse desde main')
 assert.doesNotMatch(publishWorkflow, /-\s*v2(?:-|\b)/, 'El workflow de publicación no debe publicar ramas V2')
