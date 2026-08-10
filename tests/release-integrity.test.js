@@ -43,14 +43,15 @@ const requiredFinancialAssets = [
   './payments-ui.css',
   './home-finance-summary.js',
   './workflow-fix.js',
+  './order-integrity.js',
 ]
 for (const asset of requiredFinancialAssets) {
-  assert.ok(shellSet.has(asset), `Falta módulo financiero en APP_SHELL: ${asset}`)
+  assert.ok(shellSet.has(asset), `Falta módulo financiero o de integridad en APP_SHELL: ${asset}`)
 }
 
 assert.ok(!appShell.some((asset) => asset.includes('joce-canvas-sizes-stable.js')), 'APP_SHELL no debe incluir joce-canvas-sizes-stable.js obsoleto')
 assert.match(sw, /const CACHE_PREFIX = ['"]ana-karen-['"];?/, 'La caché debe usar el prefijo propio ana-karen-')
-assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v24['"];?/, 'La caché esperada para esta release es ana-karen-v24')
+assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v25['"];?/, 'La caché esperada para esta release es ana-karen-v25')
 assert.match(sw, /event\.waitUntil\([\s\S]*cache\.put\(/, 'Las escrituras dinámicas de caché deben quedar ligadas a event.waitUntil')
 
 assert.equal(manifest.name, 'El Arte de Ana Karen')
@@ -73,8 +74,10 @@ assert.match(publishWorkflow, /\n\s{2}deploy:\s*\n[\s\S]*?needs:\s*validar\b/, '
 assert.match(publishWorkflow, /npm run check/, 'La publicación debe validar sintaxis antes de desplegar')
 assert.match(publishWorkflow, /npm run test:release/, 'La publicación debe validar integridad de release antes de desplegar')
 assert.match(publishWorkflow, /npm run test:e2e/, 'La publicación debe ejecutar Playwright antes de desplegar')
+assert.match(publishWorkflow, /chromium webkit/, 'La publicación debe validar navegadores Chromium y WebKit antes de desplegar')
 
 assert.match(validationWorkflow, /- v2-desarrollo\b/, 'La validación automática debe cubrir v2-desarrollo')
 assert.match(validationWorkflow, /'v2-\*'/, 'La validación automática debe cubrir ramas temporales v2-*')
+assert.match(validationWorkflow, /chromium webkit/, 'La validación V2 debe instalar Chromium y WebKit')
 
 console.log(`Release integrity passed: ${referencedAssets.length} recursos de index y ${appShell.length} recursos precacheados verificados.`)

@@ -4,12 +4,14 @@ const PROTECTED_ID = 'quote-integrity-protected'
 const PROTECTED_TITLE = 'Pedido con pago protegido'
 const DRAFT_ID = 'quote-integrity-draft'
 const DRAFT_TITLE = 'Borrador eliminable'
+const CANCELLED_ID = 'quote-integrity-cancelled'
+const CANCELLED_TITLE = 'Pedido cancelado protegido'
 const LEDGER_KEY = 'ak-payments-ledger-v1'
 
-test('protege pedidos con historial y permite eliminar solo borradores limpios', async ({ page }) => {
+test('protege historial, edición y pagos de pedidos sensibles', async ({ page }) => {
   test.setTimeout(90_000)
 
-  await page.addInitScript(({ protectedId, protectedTitle, draftId, draftTitle, ledgerKey }) => {
+  await page.addInitScript(({ protectedId, protectedTitle, draftId, draftTitle, cancelledId, cancelledTitle, ledgerKey }) => {
     if (sessionStorage.getItem('ak-order-integrity-ready')) return
     localStorage.clear()
     sessionStorage.clear()
@@ -46,6 +48,18 @@ test('protege pedidos con historial y permite eliminar solo borradores limpios',
         updatedAt: '2026-08-09T10:00:00.000Z',
         price,
       },
+      {
+        id: cancelledId,
+        clientId: null,
+        title: cancelledTitle,
+        width: 25,
+        height: 35,
+        technique: 'Acrílico',
+        status: 'Cancelada',
+        createdAt: '2026-08-09T10:00:00.000Z',
+        updatedAt: '2026-08-09T10:00:00.000Z',
+        price,
+      },
     ]))
     localStorage.setItem(ledgerKey, JSON.stringify({
       schemaVersion: 1,
@@ -62,6 +76,8 @@ test('protege pedidos con historial y permite eliminar solo borradores limpios',
     protectedTitle: PROTECTED_TITLE,
     draftId: DRAFT_ID,
     draftTitle: DRAFT_TITLE,
+    cancelledId: CANCELLED_ID,
+    cancelledTitle: CANCELLED_TITLE,
     ledgerKey: LEDGER_KEY,
   })
 
@@ -71,6 +87,23 @@ test('protege pedidos con historial y permite eliminar solo borradores limpios',
   await page.getByRole('button', { name: /Pedidos/ }).click()
   await expect(card(PROTECTED_TITLE)).toBeVisible()
   await expect(card(DRAFT_TITLE)).toBeVisible()
+  await expect(card(CANCELLED_TITLE)).toBeVisible()
+
+  await test.step('un pedido cancelado no acepta pagos nuevos y limita fechas al presente', async () => {
+    const section = card(CANCELLED_TITLE).locator('.order-payments')
+    await expect(section.getByRole('button', { name: 'Registrar pago' })).toBeDisabled()
+    await expect(section.locator('.payment-cancelled-note')).toContainText('no se pueden registrar pagos nuevos')
+
+    const today = await page.evaluate(() => {
+      const date = new Date()
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    })
+    await expect(section.locator('.payment-form input[name="occurredOn"]')).toHaveAttribute('max', today)
+    await expect(section.locator('.payment-correction-form input[name="occurredOn"]')).toHaveAttribute('max', today)
+  })
 
   await test.step('registrar un pago bloquea la edición retroactiva', async () => {
     const section = card(PROTECTED_TITLE).locator('.order-payments')

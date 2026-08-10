@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ana-karen-';
-const CACHE_NAME = 'ana-karen-v24';
+const CACHE_NAME = 'ana-karen-v25';
 const APP_SHELL = [
   './',
   './index.html',
