@@ -8,6 +8,7 @@
 #quote-form > #ak-joce-photo-analysis {
   grid-column: 1 / -1 !important;
   width: 100%;
+  min-width: 0;
   order: 1;
 }
 
@@ -17,6 +18,60 @@
 
 .quote-page > .price-result {
   order: 3;
+}
+
+/*
+   El shell publicado mide como máximo 900 px. El diseño anterior usaba el ancho
+   del viewport para decidir dos columnas y podía intentar meter un bloque de
+   precio de más de 340 px dentro de una columna de 320 px. Eso producía el
+   recorte horizontal visible en escritorio.
+
+   El catálogo aprobado ocupa ahora una sola columna dentro del shell. La tarjeta
+   de precio conserva dos columnas cuando tiene espacio y se apila en pantallas
+   estrechas. Todos los hijos críticos pueden encogerse sin empujar el documento.
+*/
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-areas:
+    'head'
+    'list'
+    'note'
+    'price'
+    'actions' !important;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-catalog__head,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-catalog__list,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-catalog__note,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-catalog__actions,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__preview,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__details,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price {
+  grid-template-columns: minmax(150px, .65fr) minmax(0, 1.35fr) !important;
+}
+
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__details h5,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__row span,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__row strong,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__total,
+#ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price__deposit {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 620px) {
+  #ak-approved-canvas-catalog.ak-approved-fixed-catalog .ak-approved-price {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
 }
 
 /* En pantallas amplias, el análisis y las opciones de lienzo aprovechan todo el ancho. */
