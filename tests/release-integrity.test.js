@@ -68,6 +68,12 @@ assert.match(index, /viewport-fit=cover/, 'La interfaz debe respetar áreas segu
 
 assert.match(publishWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main\b/m, 'La publicación automática debe dispararse desde main')
 assert.doesNotMatch(publishWorkflow, /-\s*v2(?:-|\b)/, 'El workflow de publicación no debe publicar ramas V2')
+assert.match(publishWorkflow, /\n\s{2}validar:\s*\n/, 'La publicación debe incluir un job previo de validación')
+assert.match(publishWorkflow, /\n\s{2}deploy:\s*\n[\s\S]*?needs:\s*validar\b/, 'El deploy debe depender del job validar')
+assert.match(publishWorkflow, /npm run check/, 'La publicación debe validar sintaxis antes de desplegar')
+assert.match(publishWorkflow, /npm run test:release/, 'La publicación debe validar integridad de release antes de desplegar')
+assert.match(publishWorkflow, /npm run test:e2e/, 'La publicación debe ejecutar Playwright antes de desplegar')
+
 assert.match(validationWorkflow, /- v2-desarrollo\b/, 'La validación automática debe cubrir v2-desarrollo')
 assert.match(validationWorkflow, /'v2-\*'/, 'La validación automática debe cubrir ramas temporales v2-*')
 
