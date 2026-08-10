@@ -13,6 +13,7 @@ const APP_SHELL = [
   './payments.js',
   './payments-storage.js',
   './app.js',
+  './quote-share-message.js',
   './workflow-status-guard.js',
   './workflow-fix.js',
   './payments-ui.js',
