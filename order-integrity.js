@@ -36,20 +36,35 @@
     }
   }
 
-  const deletionDecision = (quoteId) => {
+  const verifyQuoteAndPayments = (quoteId) => {
     const quote = getQuote(quoteId)
     if (!quote) {
-      return { allowed: false, message: 'No fue posible verificar este pedido. No se eliminó ningún dato.' }
+      return {
+        allowed: false,
+        quote: null,
+        payments: null,
+        message: 'No fue posible verificar este pedido. No se modificó ningún dato.',
+      }
     }
 
     const payments = paymentState(quoteId)
     if (payments.blocked) {
       return {
         allowed: false,
-        message: 'No se puede eliminar este pedido porque el historial de pagos no pudo verificarse de forma segura. Restaura o revisa los datos antes de continuar.',
+        quote,
+        payments,
+        message: 'No se puede modificar este pedido porque el historial de pagos no pudo verificarse de forma segura. Restaura o revisa los datos antes de continuar.',
       }
     }
 
+    return { allowed: true, quote, payments, message: '' }
+  }
+
+  const deletionDecision = (quoteId) => {
+    const verified = verifyQuoteAndPayments(quoteId)
+    if (!verified.allowed) return verified
+
+    const { quote, payments } = verified
     if (quote.status !== 'Borrador' || payments.hasMovements || hasFollowup(quoteId)) {
       return {
         allowed: false,
@@ -60,12 +75,35 @@
     return { allowed: true, message: '' }
   }
 
-  document.addEventListener('click', (event) => {
-    const button = event.target.closest?.('[data-delete-quote]')
-    if (!button) return
+  const editDecision = (quoteId) => {
+    const verified = verifyQuoteAndPayments(quoteId)
+    if (!verified.allowed) return verified
 
-    const quoteId = button.dataset.deleteQuote
-    const decision = deletionDecision(quoteId)
+    if (verified.payments.hasMovements) {
+      return {
+        allowed: false,
+        message: 'Esta cotización ya tiene pagos registrados. Para conservar importes, saldos e historial financiero, no se puede editar retroactivamente. Si cambian las condiciones, cancela este pedido y crea una nueva cotización.',
+      }
+    }
+
+    return { allowed: true, message: '' }
+  }
+
+  document.addEventListener('click', (event) => {
+    const deleteButton = event.target.closest?.('[data-delete-quote]')
+    if (deleteButton) {
+      const decision = deletionDecision(deleteButton.dataset.deleteQuote)
+      if (!decision.allowed) {
+        event.preventDefault()
+        event.stopImmediatePropagation()
+        window.alert(decision.message)
+      }
+      return
+    }
+
+    const editButton = event.target.closest?.('[data-edit-quote]')
+    if (!editButton) return
+    const decision = editDecision(editButton.dataset.editQuote)
     if (decision.allowed) return
 
     event.preventDefault()
@@ -73,5 +111,5 @@
     window.alert(decision.message)
   }, true)
 
-  window.AKOrderIntegrity = { deletionDecision }
+  window.AKOrderIntegrity = { deletionDecision, editDecision }
 })()

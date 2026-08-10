@@ -72,7 +72,7 @@ test('protege pedidos con historial y permite eliminar solo borradores limpios',
   await expect(card(PROTECTED_TITLE)).toBeVisible()
   await expect(card(DRAFT_TITLE)).toBeVisible()
 
-  await test.step('registrar un pago vuelve no eliminable al pedido', async () => {
+  await test.step('registrar un pago bloquea la edición retroactiva', async () => {
     const section = card(PROTECTED_TITLE).locator('.order-payments')
     await section.getByRole('button', { name: 'Registrar pago' }).click()
     const dialog = section.getByRole('dialog', { name: 'Registrar pago' })
@@ -82,6 +82,19 @@ test('protege pedidos con historial y permite eliminar solo borradores limpios',
     await dialog.getByRole('button', { name: 'Guardar pago' }).click()
     await expect(dialog).not.toBeVisible()
 
+    let warning = ''
+    page.once('dialog', async (dialogEvent) => {
+      warning = dialogEvent.message()
+      expect(dialogEvent.type()).toBe('alert')
+      await dialogEvent.accept()
+    })
+    await card(PROTECTED_TITLE).getByRole('button', { name: 'Editar' }).click()
+    expect(warning).toContain('ya tiene pagos registrados')
+    await expect(page.getByRole('heading', { name: 'Mis encargos' })).toBeVisible()
+    await expect(card(PROTECTED_TITLE)).toBeVisible()
+  })
+
+  await test.step('el pedido con pago tampoco puede eliminarse', async () => {
     let warning = ''
     page.once('dialog', async (dialogEvent) => {
       warning = dialogEvent.message()
