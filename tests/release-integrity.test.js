@@ -51,7 +51,7 @@ for (const asset of requiredFinancialAssets) {
 
 assert.ok(!appShell.some((asset) => asset.includes('joce-canvas-sizes-stable.js')), 'APP_SHELL no debe incluir joce-canvas-sizes-stable.js obsoleto')
 assert.match(sw, /const CACHE_PREFIX = ['"]ana-karen-['"];?/, 'La caché debe usar el prefijo propio ana-karen-')
-assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v27['"];?/, 'La caché esperada para esta release es ana-karen-v27')
+assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v26['"];?/, 'La caché esperada para esta release es ana-karen-v26')
 assert.match(sw, /event\.waitUntil\([\s\S]*cache\.put\(/, 'Las escrituras dinámicas de caché deben quedar ligadas a event.waitUntil')
 
 assert.equal(manifest.name, 'El Arte de Ana Karen')
