@@ -12,7 +12,7 @@ const REQUIRED_CACHED_RESOURCES = [
   './payments-storage.js',
   './payments-ui.js',
   './payments-ui.css',
-  './home-finance-summary.js',
+  './home-finance-summary.js?v=32',
   './workflow-fix.js',
   './order-integrity.js',
   './joce-photo-analysis.js?v=20',

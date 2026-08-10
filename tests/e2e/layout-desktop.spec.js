@@ -73,3 +73,44 @@ test('Cotizar no recorta el catálogo ni el precio recomendado en escritorio', a
   expect(metrics.headingRight).toBeLessThanOrEqual(metrics.catalogRight + 1)
   expect(metrics.priceWidth).toBeLessThanOrEqual(metrics.catalogWidth + 1)
 })
+
+test('el resumen financiero conserva la tabla completa en escritorio', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear()
+    localStorage.setItem('ak-clients-v1', JSON.stringify([
+      { id: 'client-desktop', name: 'Cliente Escritorio', createdAt: '2026-08-10T10:00:00.000Z' },
+    ]))
+    localStorage.setItem('ak-quotes-v1', JSON.stringify([{
+      id: 'quote-desktop', clientId: 'client-desktop', title: 'Obra de escritorio', width: 50, height: 70,
+      technique: 'Acrílico', status: 'Borrador', createdAt: '2026-08-10T10:00:00.000Z', updatedAt: '2026-08-10T10:00:00.000Z',
+      price: { suggestedPrice: 7550, deposit: 3775, balance: 3775, profit: 2500 },
+    }]))
+    localStorage.setItem('ak-payments-ledger-v1', JSON.stringify({
+      schemaVersion: 1,
+      movements: [],
+      migrations: { v1Quotes: { completed: true, completedAt: '2026-08-10T10:00:00.000Z' } },
+    }))
+  })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  const table = page.locator('.ak-finance-table')
+  const clientRow = page.locator('[data-ak-finance-client-row="client-desktop"]')
+  await expect(table).toBeVisible()
+  await expect(page.locator('.ak-finance-mobile-list')).toHaveCount(0)
+  await expect(clientRow.locator('[data-ak-finance-value="quoted"]')).toHaveText('$7,550.00')
+  await expect(clientRow.locator('[data-ak-finance-value="paid"]')).toHaveText('$0.00')
+  await expect(clientRow.locator('[data-ak-finance-value="pending"]')).toHaveText('$7,550.00')
+
+  const geometry = await page.locator('.ak-finance-table-wrap').evaluate((wrapper) => ({
+    clientWidth: wrapper.clientWidth,
+    scrollWidth: wrapper.scrollWidth,
+    right: wrapper.getBoundingClientRect().right,
+    viewportWidth: document.documentElement.clientWidth,
+  }))
+  expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.clientWidth)
+  expect(geometry.right).toBeLessThanOrEqual(geometry.viewportWidth)
+
+  await clientRow.getByRole('button', { name: /Cliente Escritorio/ }).click()
+  await expect(page.locator('[data-ak-finance-quote-id="quote-desktop"]')).toBeVisible()
+})

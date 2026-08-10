@@ -5,6 +5,8 @@
     clients: 'ak-clients-v1',
     quotes: 'ak-quotes-v1',
   }
+  const MOBILE_SUMMARY_QUERY = '(max-width: 760px)'
+  const mobileSummaryMedia = window.matchMedia(MOBILE_SUMMARY_QUERY)
 
   const expandedClients = new Set()
 
@@ -187,6 +189,81 @@
       }
       .ak-finance-table th:first-child,
       .ak-finance-table td:first-child { text-align: left; }
+      .ak-finance-mobile-list {
+        display: grid;
+        gap: 12px;
+        padding: 0 14px 14px;
+      }
+      .ak-finance-mobile-card {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid #efd9ef;
+        border-radius: 16px;
+        background: #fff;
+      }
+      .ak-finance-mobile-card .ak-finance-client-button {
+        width: 100%;
+        min-width: 0;
+        padding: 14px;
+      }
+      .ak-finance-mobile-card .ak-finance-client-button > span:last-child {
+        min-width: 0;
+      }
+      .ak-finance-mobile-card .ak-finance-client-button strong,
+      .ak-finance-mobile-card .ak-finance-client-button small {
+        overflow-wrap: anywhere;
+      }
+      .ak-finance-mobile-values {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin: 0;
+        padding: 0 14px 14px;
+      }
+      .ak-finance-mobile-values div {
+        min-width: 0;
+        padding: 10px;
+        border-radius: 12px;
+        background: #fbf4fa;
+      }
+      .ak-finance-mobile-values dt {
+        color: #80698b;
+        font-size: .66rem;
+        font-weight: 800;
+        line-height: 1.25;
+        text-transform: uppercase;
+      }
+      .ak-finance-mobile-values dd {
+        margin: 4px 0 0;
+        color: #2d075f;
+        font-size: clamp(.8rem, 4vw, .98rem);
+        font-weight: 900;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .ak-finance-mobile-values .ak-finance-paid { color: #087d46; }
+      .ak-finance-mobile-values .ak-finance-difference { color: #b42357; }
+      .ak-finance-mobile-values .ak-finance-zero { color: #087d46; }
+      .ak-finance-mobile-work-list {
+        margin: 0 12px 12px;
+      }
+      .ak-finance-mobile-work-list[hidden] { display: none; }
+      .ak-finance-mobile-total {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid #e8d2ed;
+        border-radius: 16px;
+        background: #fbf2fd;
+      }
+      .ak-finance-mobile-total h5 {
+        margin: 0;
+        padding: 14px 14px 10px;
+        color: #2d075f;
+        font-size: 1rem;
+      }
+      .ak-finance-mobile-total .ak-finance-mobile-values {
+        padding-top: 0;
+      }
       .ak-finance-client-button {
         display: inline-flex;
         align-items: center;
@@ -323,9 +400,6 @@
       }
       @media (max-width: 620px) {
         .ak-finance-detail-header { padding: 14px; }
-        .ak-finance-table { min-width: 650px; }
-        .ak-finance-table th,
-        .ak-finance-table td { padding: 11px 13px; }
       }
     `
     document.head.append(style)
@@ -346,7 +420,76 @@
     </article>
   `).join('')
 
-  const detailMarkup = ({ unavailable, ledgerStatus, rows, totals, hasMigratedMovements }) => {
+  const amountValuesMarkup = (amounts) => `
+    <dl class="ak-finance-mobile-values">
+      <div><dt>Cotizado</dt><dd data-ak-finance-value="quoted">${money(amounts.quoted)}</dd></div>
+      <div><dt>Anticipo cubierto</dt><dd data-ak-finance-value="covered-deposit">${money(amounts.coveredDeposit)}</dd></div>
+      <div><dt>Pagado</dt><dd class="ak-finance-paid" data-ak-finance-value="paid">${money(amounts.paid)}</dd></div>
+      <div><dt>Pendiente</dt><dd class="${amounts.pending ? 'ak-finance-difference' : 'ak-finance-zero'}" data-ak-finance-value="pending">${money(amounts.pending)}</dd></div>
+    </dl>
+  `
+
+  const mobileDetailMarkup = (rows, totals) => `
+    <div class="ak-finance-mobile-list">
+      ${rows.map((row, index) => {
+        const key = `cliente-movil-${index}`
+        const detailId = `ak-finance-mobile-detail-${index}`
+        const expanded = expandedClients.has(row.clientId)
+        return `
+          <article class="ak-finance-mobile-card" data-ak-finance-client-row="${escapeHtml(row.clientId)}">
+            <button type="button" class="ak-finance-client-button" data-ak-finance-toggle="${escapeHtml(key)}" data-ak-client-id="${escapeHtml(row.clientId)}" aria-expanded="${expanded}" aria-controls="${escapeHtml(detailId)}">
+              <span class="ak-finance-chevron" aria-hidden="true">›</span>
+              <span><strong>${escapeHtml(row.name)}</strong><small>${row.works} ${row.works === 1 ? 'encargo' : 'encargos'} · Toca para ver cada obra</small></span>
+            </button>
+            ${amountValuesMarkup(row)}
+            <div id="${escapeHtml(detailId)}" class="ak-finance-work-list ak-finance-mobile-work-list" data-ak-finance-detail-for="${escapeHtml(key)}" ${expanded ? '' : 'hidden'}>${workDetailMarkup(row)}</div>
+          </article>
+        `
+      }).join('')}
+      <section class="ak-finance-mobile-total" data-ak-finance-total-row aria-label="Total del taller">
+        <h5>Total del taller</h5>
+        ${amountValuesMarkup(totals)}
+      </section>
+    </div>
+  `
+
+  const desktopDetailMarkup = (rows, totals) => {
+    const body = rows.map((row, index) => {
+      const key = `cliente-${index}`
+      const expanded = expandedClients.has(row.clientId)
+      return `
+        <tr data-ak-finance-client-row="${escapeHtml(row.clientId)}">
+          <td>
+            <button type="button" class="ak-finance-client-button" data-ak-finance-toggle="${escapeHtml(key)}" data-ak-client-id="${escapeHtml(row.clientId)}" aria-expanded="${expanded}">
+              <span class="ak-finance-chevron" aria-hidden="true">›</span>
+              <span><strong>${escapeHtml(row.name)}</strong><small>${row.works} ${row.works === 1 ? 'encargo' : 'encargos'} · Toca para ver cada obra</small></span>
+            </button>
+          </td>
+          <td data-ak-finance-value="quoted">${money(row.quoted)}</td>
+          <td data-ak-finance-value="covered-deposit">${money(row.coveredDeposit)}</td>
+          <td class="ak-finance-paid" data-ak-finance-value="paid">${money(row.paid)}</td>
+          <td class="${row.pending ? 'ak-finance-difference' : 'ak-finance-zero'}" data-ak-finance-value="pending">${money(row.pending)}</td>
+        </tr>
+        <tr class="ak-finance-work-row" data-ak-finance-detail-for="${escapeHtml(key)}" ${expanded ? '' : 'hidden'}>
+          <td colspan="5"><div class="ak-finance-work-list">${workDetailMarkup(row)}</div></td>
+        </tr>
+      `
+    }).join('')
+
+    return `
+      <div class="ak-finance-table-wrap">
+        <table class="ak-finance-table">
+          <thead><tr><th>Cliente</th><th>Cotizado</th><th>Anticipo cubierto</th><th>Pagado</th><th>Pendiente</th></tr></thead>
+          <tbody>
+            ${body}
+            <tr class="ak-finance-total" data-ak-finance-total-row><td>Total del taller</td><td data-ak-finance-value="quoted">${money(totals.quoted)}</td><td data-ak-finance-value="covered-deposit">${money(totals.coveredDeposit)}</td><td data-ak-finance-value="paid">${money(totals.paid)}</td><td data-ak-finance-value="pending">${money(totals.pending)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+
+  const detailMarkup = ({ unavailable, ledgerStatus, rows, totals, hasMigratedMovements }, useMobileLayout) => {
     if (unavailable) {
       return `
         <div class="ak-finance-detail-header"><div><h4>Detalle por cliente</h4></div></div>
@@ -362,41 +505,11 @@
       `
     }
 
-    const body = rows.map((row, index) => {
-      const key = `cliente-${index}`
-      const expanded = expandedClients.has(row.clientId)
-      return `
-        <tr>
-          <td>
-            <button type="button" class="ak-finance-client-button" data-ak-finance-toggle="${escapeHtml(key)}" data-ak-client-id="${escapeHtml(row.clientId)}" aria-expanded="${expanded}">
-              <span class="ak-finance-chevron" aria-hidden="true">›</span>
-              <span><strong>${escapeHtml(row.name)}</strong><small>${row.works} ${row.works === 1 ? 'encargo' : 'encargos'} · Toca para ver cada obra</small></span>
-            </button>
-          </td>
-          <td>${money(row.quoted)}</td>
-          <td>${money(row.coveredDeposit)}</td>
-          <td class="ak-finance-paid">${money(row.paid)}</td>
-          <td class="${row.pending ? 'ak-finance-difference' : 'ak-finance-zero'}">${money(row.pending)}</td>
-        </tr>
-        <tr class="ak-finance-work-row" data-ak-finance-detail-for="${escapeHtml(key)}" ${expanded ? '' : 'hidden'}>
-          <td colspan="5"><div class="ak-finance-work-list">${workDetailMarkup(row)}</div></td>
-        </tr>
-      `
-    }).join('')
-
     return `
       <div class="ak-finance-detail-header">
         <div><h4>Detalle por cliente</h4><p>Toca el nombre de un cliente para revisar cada cuadro.</p></div>
       </div>
-      <div class="ak-finance-table-wrap">
-        <table class="ak-finance-table">
-          <thead><tr><th>Cliente</th><th>Cotizado</th><th>Anticipo cubierto</th><th>Pagado</th><th>Pendiente</th></tr></thead>
-          <tbody>
-            ${body}
-            <tr class="ak-finance-total"><td>Total del taller</td><td>${money(totals.quoted)}</td><td>${money(totals.coveredDeposit)}</td><td>${money(totals.paid)}</td><td>${money(totals.pending)}</td></tr>
-          </tbody>
-        </table>
-      </div>
+      ${useMobileLayout ? mobileDetailMarkup(rows, totals) : desktopDetailMarkup(rows, totals)}
       <p class="ak-finance-note">Calculado exclusivamente con los movimientos reales del ledger.${hasMigratedMovements ? ' <span class="ak-finance-migrated-note">Puede existir información migrada de V1 pendiente de revisión.</span>' : ''}${totals.overpayment ? ` <span class="ak-finance-overpayment">Sobrepago total: ${money(totals.overpayment)}</span>` : ''}</p>
     `
   }
@@ -413,7 +526,8 @@
     if (!summarySection || !metrics) return
 
     const summary = buildSummary()
-    const signature = JSON.stringify(summary)
+    const useMobileLayout = mobileSummaryMedia.matches
+    const signature = JSON.stringify({ summary, useMobileLayout })
     if (metrics.dataset.akFinanceSignature === signature) return
 
     metrics.dataset.akFinanceSignature = signature
@@ -432,7 +546,7 @@
       detail.className = 'ak-finance-detail'
       metrics.insertAdjacentElement('afterend', detail)
     }
-    detail.innerHTML = detailMarkup(summary)
+    detail.innerHTML = detailMarkup(summary, useMobileLayout)
   }
 
   document.addEventListener('click', (event) => {
@@ -469,6 +583,8 @@
     const app = document.getElementById('app')
     if (app) new MutationObserver(schedulePatch).observe(app, { childList: true, subtree: true })
     window.addEventListener('storage', schedulePatch)
+    if (mobileSummaryMedia.addEventListener) mobileSummaryMedia.addEventListener('change', schedulePatch)
+    else if (mobileSummaryMedia.addListener) mobileSummaryMedia.addListener(schedulePatch)
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start)

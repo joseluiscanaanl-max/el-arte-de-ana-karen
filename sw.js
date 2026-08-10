@@ -19,7 +19,7 @@ const APP_SHELL = [
   './order-integrity.js',
   './followup.js',
   './followup-phone-fix.js',
-  './home-finance-summary.js',
+  './home-finance-summary.js?v=32',
   './joce-photo-analysis.js?v=20',
   './joce-canvas-fit.js?v=24',
   './joce-acrylic-preview.js?v=42',

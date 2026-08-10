@@ -166,17 +166,17 @@ test('el resumen financiero usa exclusivamente pagos, reversos y saldos del ledg
     await expectWorkshop({ covered: '$1,150.00', paid: '$2,000.00', pending: '$400.00' })
 
     await page.locator('.ak-finance-client-button').filter({ hasText: 'Cliente Finanzas A' }).click()
-    const clientARow = page.locator('.ak-finance-client-button').filter({ hasText: 'Cliente Finanzas A' }).locator('xpath=ancestor::tr')
-    await expect(clientARow.locator('td').nth(1)).toHaveText('$1,800.00')
-    await expect(clientARow.locator('td').nth(2)).toHaveText('$900.00')
-    await expect(clientARow.locator('td').nth(3)).toHaveText('$1,400.00')
-    await expect(clientARow.locator('td').nth(4)).toHaveText('$400.00')
+    const clientARow = page.locator('[data-ak-finance-client-row="client-a"]')
+    await expect(clientARow.locator('[data-ak-finance-value="quoted"]')).toHaveText('$1,800.00')
+    await expect(clientARow.locator('[data-ak-finance-value="covered-deposit"]')).toHaveText('$900.00')
+    await expect(clientARow.locator('[data-ak-finance-value="paid"]')).toHaveText('$1,400.00')
+    await expect(clientARow.locator('[data-ak-finance-value="pending"]')).toHaveText('$400.00')
 
-    const totalRow = page.locator('.ak-finance-total')
-    await expect(totalRow.locator('td').nth(1)).toHaveText('$2,300.00')
-    await expect(totalRow.locator('td').nth(2)).toHaveText('$1,150.00')
-    await expect(totalRow.locator('td').nth(3)).toHaveText('$2,000.00')
-    await expect(totalRow.locator('td').nth(4)).toHaveText('$400.00')
+    const totalRow = page.locator('[data-ak-finance-total-row]')
+    await expect(totalRow.locator('[data-ak-finance-value="quoted"]')).toHaveText('$2,300.00')
+    await expect(totalRow.locator('[data-ak-finance-value="covered-deposit"]')).toHaveText('$1,150.00')
+    await expect(totalRow.locator('[data-ak-finance-value="paid"]')).toHaveText('$2,000.00')
+    await expect(totalRow.locator('[data-ak-finance-value="pending"]')).toHaveText('$400.00')
   })
 
   await test.step('ledger corrupto bloquea el resumen sin mostrar ceros falsos ni sobrescribir', async () => {
@@ -188,4 +188,67 @@ test('el resumen financiero usa exclusivamente pagos, reversos y saldos del ledg
     await expect(page.getByText(/El resumen financiero no puede calcularse porque el ledger está dañado/)).toBeVisible()
     await expect.poll(async () => page.evaluate((key) => localStorage.getItem(key), LEDGER_KEY)).toBe(corruptRaw)
   })
+})
+
+test('en 375 px Laura Martínez y sus importes se muestran completos sin desbordamiento', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.addInitScript(({ ledgerKey }) => {
+    if (sessionStorage.getItem('ak-finance-mobile-overflow-ready')) return
+    localStorage.clear()
+    sessionStorage.clear()
+    sessionStorage.setItem('ak-finance-mobile-overflow-ready', 'true')
+    localStorage.setItem('ak-clients-v1', JSON.stringify([
+      { id: 'client-laura', name: 'Laura Martínez', createdAt: '2026-08-10T10:00:00.000Z' },
+    ]))
+    localStorage.setItem('ak-quotes-v1', JSON.stringify([{
+      id: 'quote-laura', clientId: 'client-laura', title: 'Retrato familiar', width: 50, height: 70,
+      technique: 'Acrílico', status: 'Borrador', createdAt: '2026-08-10T10:00:00.000Z', updatedAt: '2026-08-10T10:00:00.000Z',
+      price: { suggestedPrice: 7550, deposit: 3775, balance: 3775, profit: 2500 },
+    }]))
+    localStorage.setItem(ledgerKey, JSON.stringify({
+      schemaVersion: 1,
+      movements: [],
+      migrations: { v1Quotes: { completed: true, completedAt: '2026-08-10T10:00:00.000Z' } },
+    }))
+  }, { ledgerKey: LEDGER_KEY })
+
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  const clientCard = page.locator('[data-ak-finance-client-row="client-laura"]')
+  await expect(clientCard).toBeVisible()
+  await expect(page.locator('.ak-finance-table')).toHaveCount(0)
+  await expect(clientCard.getByText('Laura Martínez', { exact: true })).toBeVisible()
+  await expect(clientCard.locator('[data-ak-finance-value="quoted"]')).toHaveText('$7,550.00')
+  await expect(clientCard.locator('[data-ak-finance-value="paid"]')).toHaveText('$0.00')
+  await expect(clientCard.locator('[data-ak-finance-value="pending"]')).toHaveText('$7,550.00')
+
+  const layout = await page.evaluate(() => {
+    const detail = document.querySelector('.ak-finance-detail')
+    const card = document.querySelector('[data-ak-finance-client-row="client-laura"]')
+    const visibleValues = [...card.querySelectorAll('[data-ak-finance-value]')]
+    return {
+      viewportWidth: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      detailClientWidth: detail.clientWidth,
+      detailScrollWidth: detail.scrollWidth,
+      cardClientWidth: card.clientWidth,
+      cardScrollWidth: card.scrollWidth,
+      values: visibleValues.map((value) => {
+        const rect = value.getBoundingClientRect()
+        return { left: rect.left, right: rect.right, text: value.textContent }
+      }),
+    }
+  })
+
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
+  expect(layout.detailScrollWidth).toBeLessThanOrEqual(layout.detailClientWidth)
+  expect(layout.cardScrollWidth).toBeLessThanOrEqual(layout.cardClientWidth)
+  for (const value of layout.values) {
+    expect(value.left, value.text).toBeGreaterThanOrEqual(0)
+    expect(value.right, value.text).toBeLessThanOrEqual(layout.viewportWidth)
+  }
+
+  await clientCard.getByRole('button', { name: /Laura Martínez/ }).click()
+  await expect(clientCard.locator('[data-ak-finance-quote-id="quote-laura"]')).toBeVisible()
+  await expect(clientCard.locator('[data-ak-finance-quote-id="quote-laura"]')).toContainText('Pendiente$7,550.00')
 })
