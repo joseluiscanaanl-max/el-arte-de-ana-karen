@@ -4,6 +4,7 @@
   const CLIENTS_KEY = 'ak-clients-v1'
   const QUOTES_KEY = 'ak-quotes-v1'
   const EXAMPLE_QUOTE_IDS = new Set(['quote-example'])
+  const EXAMPLE_CLIENT_IDS = new Set(['client-laura', 'client-sofia'])
 
   const readList = (key) => {
     try {
@@ -19,6 +20,40 @@
     || quote?.example === true
     || EXAMPLE_QUOTE_IDS.has(String(quote?.id || ''))
   )
+
+  const sanitizeStoredExamples = () => {
+    let realQuotes = []
+    const rawQuotes = localStorage.getItem(QUOTES_KEY)
+    if (rawQuotes !== null) {
+      try {
+        const quotes = JSON.parse(rawQuotes)
+        if (!Array.isArray(quotes)) return
+        realQuotes = quotes.filter((quote) => !isExampleQuote(quote))
+        if (realQuotes.length !== quotes.length) {
+          if (realQuotes.length) localStorage.setItem(QUOTES_KEY, JSON.stringify(realQuotes))
+          else localStorage.removeItem(QUOTES_KEY)
+        }
+      } catch {
+        return
+      }
+    }
+
+    const rawClients = localStorage.getItem(CLIENTS_KEY)
+    if (rawClients === null) return
+    try {
+      const clients = JSON.parse(rawClients)
+      if (!Array.isArray(clients)) return
+      const referencedClientIds = new Set(realQuotes.map((quote) => String(quote?.clientId || '')).filter(Boolean))
+      const persistedClients = clients.filter((client) => {
+        const clientId = String(client?.id || '')
+        return !EXAMPLE_CLIENT_IDS.has(clientId) || referencedClientIds.has(clientId)
+      })
+      if (persistedClients.length !== clients.length) {
+        if (persistedClients.length) localStorage.setItem(CLIENTS_KEY, JSON.stringify(persistedClients))
+        else localStorage.removeItem(CLIENTS_KEY)
+      }
+    } catch {}
+  }
 
   const priceOf = (quote) => Math.max(0, Math.round((Number(quote?.price?.suggestedPrice) || 0) * 100))
   const depositOf = (quote) => Math.min(
@@ -99,6 +134,7 @@
     .find((node) => node.dataset.akFinanceDetailFor === key)
 
   const patchFinance = () => {
+    sanitizeStoredExamples()
     const summary = buildRealFinance()
     if (!summary) return
 
@@ -147,7 +183,7 @@
     if (note && !note.querySelector('[data-ak-example-finance-note]')) {
       const span = document.createElement('span')
       span.dataset.akExampleFinanceNote = 'true'
-      span.textContent = ' Los registros de ejemplo no se incluyen en estos totales.'
+      span.textContent = ' Los registros de ejemplo no se incluyen en estos totales ni se guardan como datos reales.'
       note.append(span)
     }
   }
