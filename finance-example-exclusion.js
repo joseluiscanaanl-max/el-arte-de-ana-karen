@@ -3,7 +3,6 @@
 
   const CLIENTS_KEY = 'ak-clients-v1'
   const QUOTES_KEY = 'ak-quotes-v1'
-  const EXAMPLE_CLIENT_IDS = new Set(['client-laura', 'client-sofia'])
   const EXAMPLE_QUOTE_IDS = new Set(['quote-example'])
 
   const readList = (key) => {
@@ -19,7 +18,6 @@
     quote?.isExample === true
     || quote?.example === true
     || EXAMPLE_QUOTE_IDS.has(String(quote?.id || ''))
-    || EXAMPLE_CLIENT_IDS.has(String(quote?.clientId || ''))
   )
 
   const priceOf = (quote) => Math.max(0, Math.round((Number(quote?.price?.suggestedPrice) || 0) * 100))
