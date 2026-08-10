@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ana-karen-';
-const CACHE_NAME = 'ana-karen-v26';
+const CACHE_NAME = 'ana-karen-v27';
 const APP_SHELL = [
   './',
   './index.html',
@@ -13,7 +13,7 @@ const APP_SHELL = [
   './payments.js',
   './payments-storage.js',
   './app.js',
-  './quote-share-message.js',
+  './quote-share-message.js?v=34',
   './workflow-status-guard.js',
   './workflow-fix.js',
   './payments-ui.js',

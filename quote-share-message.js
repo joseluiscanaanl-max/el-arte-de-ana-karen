@@ -4,6 +4,17 @@
   const QUOTES_KEY = 'ak-quotes-v1'
   const CLIENTS_KEY = 'ak-clients-v1'
 
+  const FEMALE_NAMES = new Set([
+    'ana', 'beatriz', 'carmen', 'claudia', 'daniela', 'elena', 'fernanda', 'gabriela',
+    'isabel', 'karla', 'karen', 'laura', 'lucia', 'luz', 'mariana', 'maria', 'monica',
+    'paola', 'patricia', 'rosa', 'sofia', 'susana', 'teresa', 'veronica', 'victoria',
+  ])
+  const MALE_NAMES = new Set([
+    'alberto', 'alejandro', 'antonio', 'carlos', 'daniel', 'david', 'eduardo', 'ernesto',
+    'fernando', 'francisco', 'gerardo', 'jorge', 'jose', 'juan', 'luis', 'manuel', 'mario',
+    'miguel', 'oscar', 'pedro', 'raul', 'ricardo', 'roberto', 'sergio', 'victor',
+  ])
+
   const readList = (key) => {
     try {
       const value = JSON.parse(localStorage.getItem(key) || '[]')
@@ -17,6 +28,29 @@
     ? window.AKPricing.money(value)
     : new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(Number(value) || 0)
 
+  const normalize = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+
+  const recipientGender = (client) => {
+    const explicit = normalize(client?.gender || client?.sexo || client?.trato)
+    if (['mujer', 'femenino', 'femenina', 'female', 'f'].includes(explicit)) return 'female'
+    if (['hombre', 'masculino', 'masculina', 'male', 'm'].includes(explicit)) return 'male'
+
+    const firstName = normalize(client?.name).split(/\s+/)[0]
+    if (FEMALE_NAMES.has(firstName)) return 'female'
+    if (MALE_NAMES.has(firstName)) return 'male'
+    return 'neutral'
+  }
+
+  const enthusiasmLine = (gender) => {
+    if (gender === 'female') return 'Espero que estés tan entusiasmada como yo para iniciar tu obra cuanto antes.'
+    if (gender === 'male') return 'Espero que estés tan entusiasmado como yo para iniciar tu obra cuanto antes.'
+    return 'Espero que tengas tanto entusiasmo como yo para iniciar tu obra cuanto antes.'
+  }
+
   const buildQuoteMessage = (quoteId) => {
     const quotes = readList(QUOTES_KEY)
     const clients = readList(CLIENTS_KEY)
@@ -25,6 +59,7 @@
 
     const client = clients.find((item) => item?.id === quote.clientId)
     const clientName = String(client?.name || '').trim()
+    const gender = recipientGender(client)
     const title = String(quote.title || 'tu obra').trim()
     const technique = String(quote.technique || '').trim()
     const notes = String(quote.notes || '').trim()
@@ -55,7 +90,12 @@
       notes ? '' : null,
       notes || null,
       '',
-      'Gracias por confiar en El Arte de Ana Karen.',
+      'Sabemos lo especiales que son los recuerdos plasmados en una obra de arte.',
+      enthusiasmLine(gender),
+      'Agradecida por tu preferencia, quedo en espera de tu confirmación.',
+      'Saludos 😊',
+      '',
+      'El Arte de Ana Karen',
     ].filter((line) => line !== null && line !== undefined)
 
     return {
@@ -105,5 +145,5 @@
     void shareQuote(button)
   }, true)
 
-  window.AKQuoteShare = Object.freeze({ buildQuoteMessage })
+  window.AKQuoteShare = Object.freeze({ buildQuoteMessage, recipientGender })
 })()
