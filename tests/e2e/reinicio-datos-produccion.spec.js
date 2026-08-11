@@ -18,7 +18,9 @@ const OLD_QUOTE = {
 }
 
 test('el reinicio de producción deja las bases operativas en cero y conserva la configuración', async ({ page }) => {
-  await page.addInitScript(({ settings, quote }) => {
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+  await page.evaluate(({ settings, quote }) => {
     localStorage.clear()
     sessionStorage.clear()
     localStorage.setItem('ak-settings-v1', JSON.stringify(settings))
@@ -47,7 +49,7 @@ test('el reinicio de producción deja las bases operativas en cero y conserva la
     sessionStorage.setItem('ak-joce-reference-v1', 'referencia-temporal')
   }, { settings: SETTINGS, quote: OLD_QUOTE })
 
-  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(page.locator('[data-ak-finance-metric="quoted"] strong')).toHaveText('$5,000.00')
 
   const result = await page.evaluate(() => window.AKProductionDataReset.resetOperationalData(

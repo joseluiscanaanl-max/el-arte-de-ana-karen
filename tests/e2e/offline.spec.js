@@ -9,10 +9,12 @@ const QUOTE_TITLE = 'Pedido Offline V2'
 const REQUIRED_CACHED_RESOURCES = [
   './index.html',
   './payments.js',
+  './production-data-reset.js?v=1',
   './payments-storage.js',
   './payments-ui.js',
   './payments-ui.css',
   './home-finance-summary.js?v=32',
+  './finance-example-exclusion.js?v=2',
   './workflow-fix.js',
   './order-integrity.js',
   './joce-photo-analysis.js?v=20',
@@ -24,7 +26,7 @@ const REQUIRED_CACHED_RESOURCES = [
   './joce-approved-fixed-layout.js?v=31',
 ]
 
-test('la PWA v27 conserva clientes, pedidos y finanzas completamente offline', async ({ page, context }) => {
+test('la PWA v28 conserva clientes, pedidos y finanzas completamente offline', async ({ page, context }) => {
   test.setTimeout(120_000)
 
   await page.addInitScript(async ({ quoteId, quoteTitle, ledgerKey }) => {
@@ -45,7 +47,7 @@ test('la PWA v27 conserva clientes, pedidos y finanzas completamente offline', a
       movements: [],
       migrations: { v1Quotes: { completed: true, completedAt: '2026-08-07T10:00:00.000Z' } },
     }))
-    const oldCache = await caches.open('ana-karen-v26')
+    const oldCache = await caches.open('ana-karen-v27')
     await oldCache.put('./recurso-antiguo', new Response('antiguo'))
     const foreignCache = await caches.open('otra-aplicacion-cache')
     await foreignCache.put('./recurso-ajeno', new Response('ajeno'))
@@ -70,17 +72,17 @@ test('la PWA v27 conserva clientes, pedidos y finanzas completamente offline', a
     await expect(dialog).not.toBeVisible()
   }
 
-  await test.step('instalar v27, eliminar solo cachés anteriores propias y precachear módulos críticos', async () => {
+  await test.step('instalar v28, eliminar solo cachés anteriores propias y precachear módulos críticos', async () => {
     await page.goto('/', { waitUntil: 'load' })
     await page.evaluate(() => navigator.serviceWorker.ready)
     await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
-    await expect.poll(() => page.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(['ana-karen-v27', 'otra-aplicacion-cache']))
+    await expect.poll(() => page.evaluate(() => caches.keys())).toEqual(expect.arrayContaining(['ana-karen-v28', 'otra-aplicacion-cache']))
     const cacheNames = await page.evaluate(() => caches.keys())
-    expect(cacheNames).not.toContain('ana-karen-v26')
+    expect(cacheNames).not.toContain('ana-karen-v27')
     expect(cacheNames).toContain('otra-aplicacion-cache')
 
     const cached = await page.evaluate(async (resources) => {
-      const cache = await caches.open('ana-karen-v27')
+      const cache = await caches.open('ana-karen-v28')
       return Object.fromEntries(await Promise.all(resources.map(async (resource) => [
         resource,
         Boolean(await cache.match(new URL(resource, location.href).href)),
