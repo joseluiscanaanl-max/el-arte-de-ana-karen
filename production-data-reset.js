@@ -9,8 +9,10 @@
   'use strict'
 
   const RESET_MARKER = 'ak-production-data-reset-v2-0-6'
-  const PRODUCTION_HOST = 'joseluiscanaanl-max.github.io'
-  const PRODUCTION_PATH = '/el-arte-de-ana-karen/'
+  const PRODUCTION_LOCATIONS = Object.freeze([
+    Object.freeze({ hostname: 'joseluiscanaanl-max.github.io', pathPrefix: '/el-arte-de-ana-karen/' }),
+    Object.freeze({ hostname: 'el-arte-de-ana-karen.vercel.app', pathPrefix: '/' }),
+  ])
   const OPERATIONAL_KEYS = [
     'ak-clients-v1',
     'ak-quotes-v1',
@@ -22,8 +24,10 @@
 
   const isProductionLocation = (location) => Boolean(
     location
-    && location.hostname === PRODUCTION_HOST
-    && String(location.pathname || '').startsWith(PRODUCTION_PATH)
+    && PRODUCTION_LOCATIONS.some(({ hostname, pathPrefix }) => (
+      location.hostname === hostname
+      && String(location.pathname || '/').startsWith(pathPrefix)
+    ))
   )
 
   const restoreSnapshot = (storage, snapshot) => {
@@ -79,9 +83,8 @@
 
   return {
     RESET_MARKER,
+    PRODUCTION_LOCATIONS,
     OPERATIONAL_KEYS,
-    PRODUCTION_HOST,
-    PRODUCTION_PATH,
     isProductionLocation,
     resetOperationalData,
     autoReset,
