@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ana-karen-';
-const CACHE_NAME = 'ana-karen-v28';
+const CACHE_NAME = 'ana-karen-v29';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,7 +11,7 @@ const APP_SHELL = [
   './payments-ui.css',
   './pricing.js',
   './payments.js',
-  './production-data-reset.js?v=1',
+  './production-data-reset.js?v=2',
   './payments-storage.js',
   './settings-persistence.js?v=1',
   './app.js',

@@ -20,6 +20,22 @@ const OLD_QUOTE = {
 test('el reinicio de producción deja las bases operativas en cero y conserva la configuración', async ({ page }) => {
   await page.goto('/', { waitUntil: 'domcontentloaded' })
 
+  const productionLocations = await page.evaluate(() => ({
+    githubPages: window.AKProductionDataReset.isProductionLocation({
+      hostname: 'joseluiscanaanl-max.github.io',
+      pathname: '/el-arte-de-ana-karen/',
+    }),
+    vercel: window.AKProductionDataReset.isProductionLocation({
+      hostname: 'el-arte-de-ana-karen.vercel.app',
+      pathname: '/',
+    }),
+    localhost: window.AKProductionDataReset.isProductionLocation({
+      hostname: '127.0.0.1',
+      pathname: '/',
+    }),
+  }))
+  expect(productionLocations).toEqual({ githubPages: true, vercel: true, localhost: false })
+
   await page.evaluate(({ settings, quote }) => {
     localStorage.clear()
     sessionStorage.clear()
