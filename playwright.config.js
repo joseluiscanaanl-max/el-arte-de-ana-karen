@@ -32,7 +32,7 @@ module.exports = defineConfig({
     },
     {
       name: 'chromium-desktop',
-      testMatch: '**/layout-desktop.spec.js',
+      testMatch: ['**/layout-desktop.spec.js', '**/reinicio-datos-produccion.spec.js'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 1365, height: 768 },

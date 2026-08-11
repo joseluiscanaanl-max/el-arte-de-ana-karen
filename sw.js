@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'ana-karen-';
-const CACHE_NAME = 'ana-karen-v27';
+const CACHE_NAME = 'ana-karen-v28';
 const APP_SHELL = [
   './',
   './index.html',
@@ -11,6 +11,7 @@ const APP_SHELL = [
   './payments-ui.css',
   './pricing.js',
   './payments.js',
+  './production-data-reset.js?v=1',
   './payments-storage.js',
   './settings-persistence.js?v=1',
   './app.js',
@@ -22,7 +23,7 @@ const APP_SHELL = [
   './followup.js',
   './followup-phone-fix.js',
   './home-finance-summary.js?v=32',
-  './finance-example-exclusion.js?v=1',
+  './finance-example-exclusion.js?v=2',
   './joce-photo-analysis.js?v=20',
   './joce-canvas-fit.js?v=24',
   './joce-acrylic-preview.js?v=42',

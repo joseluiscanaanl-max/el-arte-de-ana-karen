@@ -9,6 +9,7 @@ const stripQuery = (value) => value.split('?')[0].replace(/^\.\//, '')
 
 const index = read('index.html')
 const sw = read('sw.js')
+const productionReset = read('production-data-reset.js')
 const manifest = JSON.parse(read('manifest.webmanifest'))
 const publishWorkflow = read('.github/workflows/publicar-sitio.yml')
 const validationWorkflow = read('.github/workflows/validar-v2.yml')
@@ -38,10 +39,12 @@ for (const asset of referencedAssets) {
 
 const requiredFinancialAssets = [
   './payments.js',
+  './production-data-reset.js?v=1',
   './payments-storage.js',
   './payments-ui.js',
   './payments-ui.css',
   './home-finance-summary.js?v=32',
+  './finance-example-exclusion.js?v=2',
   './workflow-fix.js',
   './order-integrity.js',
 ]
@@ -49,9 +52,14 @@ for (const asset of requiredFinancialAssets) {
   assert.ok(shellSet.has(asset), `Falta módulo financiero o de integridad en APP_SHELL: ${asset}`)
 }
 
+assert.ok(index.indexOf('./production-data-reset.js?v=1') < index.indexOf('./payments-storage.js'), 'El reinicio de datos debe ejecutarse antes de inicializar el ledger')
+assert.match(productionReset, /joseluiscanaanl-max\.github\.io/, 'El reinicio automático debe limitarse al host de producción')
+assert.match(productionReset, /preserved:\s*\['ak-settings-v1'\]/, 'El reinicio debe preservar la configuración del taller')
+assert.match(productionReset, /ak-production-data-reset-v2-0-6/, 'El reinicio debe ser único y versionado')
+
 assert.ok(!appShell.some((asset) => asset.includes('joce-canvas-sizes-stable.js')), 'APP_SHELL no debe incluir joce-canvas-sizes-stable.js obsoleto')
 assert.match(sw, /const CACHE_PREFIX = ['"]ana-karen-['"];?/, 'La caché debe usar el prefijo propio ana-karen-')
-assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v27['"];?/, 'La caché esperada para esta release es ana-karen-v27')
+assert.match(sw, /const CACHE_NAME = ['"]ana-karen-v28['"];?/, 'La caché esperada para esta release es ana-karen-v28')
 assert.match(sw, /event\.waitUntil\([\s\S]*cache\.put\(/, 'Las escrituras dinámicas de caché deben quedar ligadas a event.waitUntil')
 
 assert.equal(manifest.name, 'El Arte de Ana Karen')

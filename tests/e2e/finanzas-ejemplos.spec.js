@@ -49,5 +49,5 @@ test('los registros de ejemplo permanecen fuera de todos los totales financieros
 
   await expect(page.locator('[data-ak-finance-client-row="client-real"]')).toBeVisible()
   await expect(page.locator('[data-ak-finance-client-row="client-laura"]')).toBeHidden()
-  await expect(page.locator('.ak-finance-note')).toContainText('Los registros de ejemplo no se incluyen en estos totales.')
+  await expect(page.locator('.ak-finance-note')).toContainText('Los registros de ejemplo no se incluyen en estos totales ni se guardan como datos reales.')
 })
