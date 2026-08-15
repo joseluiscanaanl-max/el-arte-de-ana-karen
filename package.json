@@ -6,6 +6,7 @@
   "scripts": {
     "start": "python3 -m http.server 4173",
     "check": "node scripts/check-syntax.cjs",
+    "build:pages": "node scripts/stage-pages.cjs",
     "test:release": "node tests/release-integrity.test.js",
     "test:e2e": "playwright test"
   },
