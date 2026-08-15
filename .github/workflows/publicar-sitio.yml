@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: el-arte-de-ana-karen-publicacion
@@ -23,10 +21,10 @@ jobs:
 
     steps:
       - name: Descargar repositorio
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Configurar Node.js 24
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
           cache: npm
@@ -52,12 +50,15 @@ jobs:
       - name: Probar persistencia de pagos
         run: node tests/payments-storage.test.js
 
+      - name: Validar paquete público mínimo de Pages
+        run: npm run build:pages
+
       - name: Ejecutar Playwright completo
         run: npm run test:e2e
 
       - name: Guardar reporte de Playwright si falla
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: playwright-produccion-${{ github.run_id }}
           path: playwright-report/
@@ -68,22 +69,34 @@ jobs:
     name: Publicar sitio
     needs: validar
     runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: el-arte-de-ana-karen-pages
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Descargar archivos del repositorio
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Configurar Node.js 24
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
 
       - name: Configurar GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
-      - name: Preparar archivos del sitio
-        uses: actions/upload-pages-artifact@v4
+      - name: Construir paquete público mínimo
+        run: npm run build:pages
+
+      - name: Preparar únicamente archivos públicos del sitio
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
-          path: .
+          path: _site
 
       - name: Publicar en GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
