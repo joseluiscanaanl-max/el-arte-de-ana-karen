@@ -1,9 +1,7 @@
 name: TEMP SP500 Order Block Backtest 2012+
 
 on:
-  push:
-    branches:
-      - tmp/dukascopy-data-bridge
+  pull_request:
   workflow_dispatch:
 
 permissions:
