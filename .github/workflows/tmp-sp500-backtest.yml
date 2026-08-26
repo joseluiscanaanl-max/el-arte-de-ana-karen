@@ -1,22 +1,13 @@
-name: TEMP SP500 Order Block Backtest 2012+
+name: TEMP SP500 research retired
 
 on:
-  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  backtest:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-      - name: Set up Node 24
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
-        with:
-          node-version: 24.18.0
-      - name: Run SP500 M15 backtest from 2012
-        run: node tmp-research/sp500_backtest_2012.mjs
+      - run: echo "Temporary SP500 research runner retired"
